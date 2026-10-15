@@ -82,6 +82,8 @@ function donut(
   });
 }
 
+const MAX_LABELLED = 25;
+
 function scatter(
   t: ChartTokens, common: Common, spec: ChartSpec, xKey: string, s: SeriesSpec, fmtOf: (f: string) => Fmt, details: object[],
 ): VisualizationSpec {
@@ -93,20 +95,22 @@ function scatter(
   ];
   const encoding = {
     x: { field: xKey, type: "quantitative", scale: { zero: false, nice: true }, axis: { ...axisOf(fmtOf(xKey)), title: label(xKey), grid: true } },
-    y: { field: s.field, type: "quantitative", axis: { ...axisOf(fmtOf(s.field)), title: s.name } },
+    y: { field: s.field, type: "quantitative", scale: { zero: false, nice: true }, axis: { ...axisOf(fmtOf(s.field)), title: s.name } },
   };
+  // text labels only help when there is room for them; with many points they pile up, so leave those to the tooltip
+  const labelled = !!spec.label && (common.data as { values: unknown[] }).values.length <= MAX_LABELLED;
   return asSpec({
     ...common,
     encoding,
     layer: [
       {
-        mark: { type: "point", shape: "square", filled: true, opacity: 0.8, color: t.accent },
+        mark: { type: "point", shape: "square", filled: true, opacity: spec.size ? 0.55 : 0.8, color: t.accent },
         encoding: {
           ...(spec.size ? { size: { field: spec.size, type: "quantitative", scale: { range: [40, 600] }, legend: null } } : {}),
           tooltip,
         },
       },
-      ...(spec.label
+      ...(labelled
         ? [{ mark: { type: "text", dy: -10, fontSize: 10, color: t.muted }, encoding: { text: { field: spec.label, type: "nominal" } } }]
         : []),
     ],

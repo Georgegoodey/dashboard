@@ -1,14 +1,23 @@
+import { MOBILE_QUERY, useMediaQuery } from "@/hooks";
 import { Header } from "./Header";
-import { useWorkspace, Workspace } from "./Workspace";
+import { MobileWorkspace, useMobilePanel, useWorkspace, Workspace } from "./Workspace";
 import "./app.css";
 
 export default function App() {
+  const mobile = useMediaQuery(MOBILE_QUERY);
   const workspace = useWorkspace();
+  const [active, setActive] = useMobilePanel();
+
   return (
     <div className="app">
-      <Header onAdd={workspace.addPanel} onResetLayout={workspace.resetLayout} />
+      <Header
+        compact={mobile}
+        active={active}
+        onAdd={mobile ? setActive : workspace.addPanel}
+        onResetLayout={workspace.resetLayout}
+      />
       <main className="app-main">
-        <Workspace workspace={workspace} />
+        {mobile ? <MobileWorkspace active={active} /> : <Workspace workspace={workspace} />}
       </main>
     </div>
   );

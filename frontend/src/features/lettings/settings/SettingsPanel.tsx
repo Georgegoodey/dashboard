@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Badge, Button, Field, I, ICON_SIZE, Note, Panel, Scroll, Select, Spacer, Toolbar } from "@/components";
+import { Button, Field, I, ICON_SIZE, Note, Panel, Scroll, Select } from "@/components";
 import { lettings, Place, Profile, WEEKDAYS } from "../lib";
+import AreasManager from "./AreasManager";
 import "./settings.css";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -133,33 +134,11 @@ export default function SettingsPanel() {
   const qc = useQueryClient();
   const places = useQuery({ queryKey: ["places"], queryFn: lettings.places });
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: lettings.profiles });
-  const areas = useQuery({ queryKey: ["areas"], queryFn: lettings.areas });
   const health = useQuery({ queryKey: ["health"], queryFn: lettings.health });
-  const [areaText, setAreaText] = useState("");
-
-  const addAreas = useMutation({
-    mutationFn: async (text: string) => {
-      const codes = text.split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter(Boolean);
-      const errors: string[] = [];
-      for (const code of codes) {
-        try { await lettings.addArea(code); } catch (e) { errors.push((e as Error).message); }
-      }
-      if (errors.length) throw new Error(errors.join("; "));
-    },
-    onSuccess: () => { setAreaText(""); qc.invalidateQueries({ queryKey: ["areas"] }); qc.invalidateQueries({ queryKey: ["status"] }); },
-    onError: () => qc.invalidateQueries({ queryKey: ["areas"] }),
-  });
-  const toggle = useMutation({ mutationFn: (a: { id: number; enabled: boolean }) => lettings.setArea(a.id, a.enabled), onSuccess: () => qc.invalidateQueries({ queryKey: ["areas"] }) });
-  const remove = useMutation({ mutationFn: (id: number) => lettings.deleteArea(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ["areas"] }); qc.invalidateQueries({ queryKey: ["status"] }); } });
-
   const place = (kind: "home" | "work") => places.data?.find((p) => p.kind === kind);
 
   return (
     <Panel>
-      <Toolbar>
-        <Badge neutral>Everything here is stored in the database</Badge>
-        <Spacer />
-      </Toolbar>
       <Scroll>
         <Section title="Home and work" hint="Used for commute times and distances. A full UK postcode is enough.">
           <PlaceRow kind="work" label="Work" place={place("work")} />
@@ -177,32 +156,8 @@ export default function SettingsPanel() {
           <FiltersSection />
         </Section>
 
-        <Section title="Search areas" hint="Postcode areas (outcodes) to search, e.g. SW11, SW18, TW9. Add as many as you like.">
-          <div className="form-row">
-            <Field label="Add outcodes (comma or space separated)">
-              <input className="input" placeholder="SW11, SW12, SW18" value={areaText} onChange={(e) => setAreaText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && areaText.trim()) addAreas.mutate(areaText); }} />
-            </Field>
-            <div className="row-actions">
-              <Button size="sm" onClick={() => addAreas.mutate(areaText)} disabled={!areaText.trim() || addAreas.isPending}>
-                <I.add size={ICON_SIZE} /> Add
-              </Button>
-            </div>
-            {addAreas.error && <Note kind="error">{addAreas.error.message}</Note>}
-          </div>
-          <div className="areas">
-            {areas.data?.length === 0 && <div className="muted">No areas yet.</div>}
-            {areas.data?.map((a) => (
-              <div key={a.id} className={`area${a.enabled ? "" : " off"}`}>
-                <label className="check">
-                  <input type="checkbox" checked={a.enabled} onChange={(e) => toggle.mutate({ id: a.id, enabled: e.target.checked })} />
-                  <b>{a.outcode}</b>
-                </label>
-                <span className="muted small">{a.properties} homes</span>
-                <Button variant="ghost" size="sm" icon title="Remove area" onClick={() => remove.mutate(a.id)}><I.close size={14} /></Button>
-              </div>
-            ))}
-          </div>
+        <Section title="Search areas" hint="Postcode areas (outcodes) to search. Tick the ones to include; groups can be switched on or off together.">
+          <AreasManager />
         </Section>
       </Scroll>
     </Panel>

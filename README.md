@@ -1,4 +1,4 @@
-# Agent Dashboard: lettings finder
+# Lettings Finder
 
 A personal tool for finding rentals. It scrapes listings from Rightmove, stores them in Postgres, works out
 public-transport commutes to your work and home with the TfL journey planner, and lets you explore everything in a
@@ -61,7 +61,7 @@ is not running the API still starts, `/health` reports `database_ok: false`, and
 4. **Chat** (open from the Assistant menu): ask things like "cheapest 2 beds under 40 minutes to work". The agent writes SQL
    against the curated views only. Each successful query appears above the reply as a chart or table you can switch
    and customise.
-5. **SQL Console** and **Vega-Lite** panels: run read-only SQL yourself, as a table or an inferred chart.
+5. **SQL Console** and **Market Analysis** panels: the console runs read-only SQL as a table or an inferred chart; Market Analysis charts rent, supply and commute patterns.
 
 ## How it works
 
@@ -109,7 +109,7 @@ table. The spec editor changes it, and "Reset to inferred" undoes the edits.
 
 To chart something new, write the SQL. Column names are the contract: `rent`, `price`, `amount` format as money; `pct` as
 percentage points; `rate`, `discount`, `share` (0 to 1) as percentages; `avg`, `moving`, `rolling` mark a derived line; `*_id`
-columns become labels. Add an entry to `features/charts/gallery/gallery.ts` to put it in the Vega-Lite panel.
+columns become labels. Add an entry to `features/charts/gallery/gallery.ts` to put it in the Market Analysis panel.
 
 ## Configuration (`.env`)
 

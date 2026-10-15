@@ -10,4 +10,6 @@ export { Menu } from "./Menu";
 export type { MenuEntry } from "./Menu";
 export { Note } from "./Note";
 export { Footer, Panel, Scroll, Section, Spacer, Toolbar } from "./Panel";
+export { StatStrip } from "./Stats";
+export type { Stat } from "./Stats";
 export { DataTable } from "./Table";

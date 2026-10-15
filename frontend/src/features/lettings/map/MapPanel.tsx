@@ -7,8 +7,9 @@ import type { MapRef } from "react-map-gl/maplibre";
 import { setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Badge, Button, Empty, Field, I, ICON_SIZE, Note, Panel, Select, Spacer, Toolbar } from "@/components";
+import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Select, Spacer, Toolbar } from "@/components";
 import { gbp, lettings, MapPoint, PropertyFilters } from "../lib";
+import { FilterBar, FilterToggle } from "../filters";
 import "./map.css";
 
 // Vite must bundle the map's web worker itself; without this the map fails with "Worker failed to load".
@@ -52,6 +53,7 @@ export default function MapPanel() {
   const [minBeds, setMinBeds] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [maxCommute, setMaxCommute] = useState("");
+  const [showFilters, setShowFilters] = useState(false); // phones only: the filter bar folds away to leave room for the map
   const [picked, setPicked] = useState<MapPoint | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
@@ -115,11 +117,12 @@ export default function MapPanel() {
   return (
     <Panel>
       <Toolbar>
-        <Badge>{total.toLocaleString()} on map</Badge>
+        <FilterToggle open={showFilters} onToggle={() => setShowFilters((v) => !v)} />
+        <span className="muted">{total.toLocaleString("en-GB")} homes with a location</span>
         <Spacer />
         <Button variant="ghost" size="sm" onClick={() => points.refetch()}><I.rerun size={ICON_SIZE} /> Refresh</Button>
       </Toolbar>
-      <div className="filters">
+      <FilterBar open={showFilters}>
         <Field label="Colour by"><Select value={metric} onChange={setMetric} options={METRICS} /></Field>
         <Field label="Bedrooms"><Select value={minBeds} onChange={setMinBeds} options={BEDS} /></Field>
         <Field label="Max rent £/month">
@@ -128,7 +131,7 @@ export default function MapPanel() {
         <Field label="Max commute (min)">
           <input className="input" inputMode="numeric" placeholder="any" value={maxCommute} onChange={(e) => setMaxCommute(e.target.value)} />
         </Field>
-      </div>
+      </FilterBar>
       {points.error && <Note kind="error">{points.error.message}</Note>}
       {mapError && <Note kind="error">Could not load the map tiles ({mapError}). Check your internet connection.</Note>}
       <div className="map-wrap">

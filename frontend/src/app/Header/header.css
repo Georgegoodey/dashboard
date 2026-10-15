@@ -3,6 +3,13 @@
   min-height: var(--bar-h); padding: var(--space-1) var(--space-3);
   background: var(--surface); border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow);
 }
-.app-title { white-space: nowrap; display: flex; align-items: center; gap: var(--space-2); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.app-logo { width: 20px; height: 20px; border: var(--border-w) solid var(--border-strong); background: var(--accent); box-shadow: 2px 2px 0 var(--border-strong); }
+.app-title { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: var(--space-2); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.app-logo { width: 20px; height: 20px; border: var(--border-w) solid var(--border-strong); background: var(--accent); box-shadow: var(--shadow-sm); }
 .app-menus { display: flex; align-items: center; gap: var(--space-1); }
+
+/* phones: logo, current panel title and one menu, all on a single row */
+@media (max-width: 720px) {
+  .app-header { gap: var(--space-3); padding: var(--space-1) var(--space-2); }
+  .app-header .app-title { flex: 1; }
+  .app-logo { flex-shrink: 0; }
+}

@@ -7,16 +7,18 @@ export type { Row } from "../lib";
 /** Vega-Lite chart queries. (The inferred-chart gallery lives in charts/gallery.ts and is drawn by the generic pipeline.) */
 export const QUERIES = {
   vgHeat: {
-    title: "Average rent: borough × bedrooms",
-    subtitle: "Layered rect + text · conditional label colour",
+    kind: "Comparison",
+    title: "Rent by borough and bedroom count",
+    subtitle: "Mean monthly rent (£). Darker cells are costlier; compare across a row for the premium per extra bedroom",
     sql: `SELECT borough, bedrooms::text AS beds, round(avg(rent_pcm)) AS rent
 FROM v_properties
 WHERE borough IS NOT NULL AND bedrooms BETWEEN 0 AND 4
 GROUP BY borough, bedrooms`,
   },
   vgBox: {
-    title: "Rent distribution by bedrooms",
-    subtitle: "Boxplot from SQL quantiles · rule + bar + tick layers",
+    kind: "Distribution",
+    title: "Rent spread by bedroom count",
+    subtitle: "Median, interquartile range and 5th to 95th percentile of monthly rent. Wide boxes mean prices vary a lot",
     sql: `SELECT bedrooms::text AS beds,
        round(percentile_cont(0.05) WITHIN GROUP (ORDER BY rent_pcm)::numeric) AS lo,
        round(percentile_cont(0.25) WITHIN GROUP (ORDER BY rent_pcm)::numeric) AS q1,
@@ -29,8 +31,9 @@ WHERE bedrooms BETWEEN 0 AND 4
 GROUP BY bedrooms ORDER BY bedrooms`,
   },
   vgScatter: {
-    title: "Does a shorter commute cost more?",
-    subtitle: "Scatter + per-bedroom regression · needs your work address in Settings",
+    kind: "Correlation",
+    title: "Is a shorter commute priced in?",
+    subtitle: "Mean rent against morning commute, with a linear trend per bedroom count. A downward slope means shorter commutes cost more",
     sql: `SELECT bedrooms::text AS beds,
        (round(work_am_min / 5.0) * 5)::int AS commute_min,
        round(avg(rent_pcm)) AS avg_rent,
@@ -42,8 +45,9 @@ HAVING count(*) >= 3
 ORDER BY 1, 2`,
   },
   vgLines: {
-    title: "New listings per week by bedrooms",
-    subtitle: "Window transform + pivot · click the legend to isolate a series, hover for all values",
+    kind: "Trend",
+    title: "Weekly supply by bedroom count",
+    subtitle: "New adverts first seen each week. Click the legend to isolate a size; hover for every value that week",
     sql: `SELECT to_char(date_trunc('week', current_date - days_on_market), 'YYYY-MM-DD') AS week,
        CASE WHEN bedrooms >= 3 THEN '3+' ELSE bedrooms::text END AS beds,
        count(*) AS homes

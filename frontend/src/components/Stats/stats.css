@@ -1,0 +1,16 @@
+.stat-strip { display: flex; flex-shrink: 0; border-bottom: var(--border-w) solid var(--border); }
+.stat { position: relative; flex: 1 1 0; min-width: 0; padding: var(--space-2) var(--space-4) var(--space-3); border-right: var(--rule-w) solid var(--border); }
+.stat:last-child { border-right: 0; }
+.stat-value { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.stat-hint { font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-muted .stat-value { color: var(--text-muted); }
+.stat-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--surface-raised); }
+.stat-bar-fill { height: 100%; background: var(--accent); transition: width .4s var(--ease); }
+
+/* phones: a slimmer strip, values only (the hints are cut off at this width anyway) */
+@media (max-width: 720px) {
+  .stat { padding: var(--space-2) var(--space-3); }
+  .stat-value { font-size: 18px; }
+  .stat-hint { display: none; }
+}

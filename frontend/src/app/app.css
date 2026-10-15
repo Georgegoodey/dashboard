@@ -1,7 +1,17 @@
 /* The shell sits inside a global margin so no border or shadow touches the screen edge.
-   The extra right/bottom space is room for the 3px hard shadows. */
+   The extra right/bottom space is room for the 4px hard shadows. */
 .app {
   display: flex; flex-direction: column; gap: var(--space-4); height: 100%;
-  padding: var(--space-4) calc(var(--space-4) + 3px) calc(var(--space-4) + 3px) var(--space-4);
+  padding: var(--space-4) calc(var(--space-4) + 4px) calc(var(--space-4) + 4px) var(--space-4);
 }
 .app-main { position: relative; flex: 1; min-height: 0; }
+
+/* mobile browsers: 100% includes the area behind the address bar, dvh does not; keep clear of notches */
+.app { height: 100dvh; padding-top: max(var(--space-4), env(safe-area-inset-top)); padding-bottom: max(calc(var(--space-4) + 4px), env(safe-area-inset-bottom)); }
+@media (max-width: 720px) {
+  .app {
+    gap: var(--space-2);
+    padding: max(var(--space-2), env(safe-area-inset-top)) max(calc(var(--space-2) + 4px), env(safe-area-inset-right))
+             max(calc(var(--space-2) + 4px), env(safe-area-inset-bottom)) max(var(--space-2), env(safe-area-inset-left));
+  }
+}

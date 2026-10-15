@@ -10,11 +10,17 @@
 .btn:disabled { opacity: .5; cursor: default; }
 .btn:active:not(:disabled) { transform: translate(2px, 2px) !important; box-shadow: none !important; transition-duration: 40ms; }
 .btn-sm { height: 28px; padding: 0 var(--space-2); font-size: 13px; }
-.btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--border-strong); box-shadow: 2px 2px 0 var(--border-strong); }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--border-strong); }
-.btn-soft { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-border); box-shadow: 2px 2px 0 var(--accent-soft-border); }
-.btn-soft:hover:not(:disabled) { border-color: var(--accent); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--accent); }
+.btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translate(-1px, -1px); box-shadow: var(--shadow-sm-up); }
+.btn-soft { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-border); box-shadow: var(--shadow-sm); }
+.btn-soft:hover:not(:disabled) { border-color: var(--accent); transform: translate(-1px, -1px); box-shadow: var(--shadow-sm-up); }
 .btn-ghost { background: transparent; color: var(--text-muted); }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
 .btn-icon { width: 28px; padding: 0; }
 .btn svg { flex-shrink: 0; }
+
+@media (pointer: coarse) {
+  .btn { height: 40px; }
+  .btn-sm { height: 36px; }
+  .btn-icon { width: 36px; }
+}

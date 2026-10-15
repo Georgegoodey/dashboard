@@ -1,4 +1,5 @@
 """Search filters (minimum and maximum bedrooms, maximum rent): stored in app_settings and edited in the UI.
+The enabled search areas are part of the same visibility rule: `apply` hides homes in areas that are switched off.
 
 They are applied three ways so they behave the same for every portal: sent to the portal as search parameters,
 re-checked on what comes back (`SearchFilters.accepts`), and applied to listings already stored (`apply`), which are
@@ -27,8 +28,13 @@ def save(db: Database, f: SearchFilters) -> None:
 
 
 def apply(db: Database, f: SearchFilters) -> dict[str, int]:
-    """Hide stored listings outside the filters and restore ones that are inside again."""
+    """Hide stored listings outside the filters or the enabled areas, and restore ones that are inside again."""
     return listings.apply_filters(db, f)
+
+
+def refresh(db: Database) -> dict[str, int]:
+    """Re-apply the saved filters; call after the search areas change."""
+    return apply(db, load(db))
 
 
 def update(db: Database, f: SearchFilters) -> dict[str, int]:

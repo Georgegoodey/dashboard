@@ -16,7 +16,7 @@ export const PANELS = {
   map: { title: "Map", icon: MapTrifold, component: MapPanel },
   settings: { title: "Settings", icon: GearSix, component: SettingsPanel },
   jobs: { title: "Jobs", icon: Timer, component: JobsPanel },
-  vega: { title: "Vega-Lite", icon: ChartLineUp, component: ChartsPanel },
+  vega: { title: "Market Analysis", icon: ChartLineUp, component: ChartsPanel },
   sql: { title: "SQL Console", icon: Code, component: SqlPanel },
   database: { title: "Database", icon: Database, component: DatabasePanel },
   chat: { title: "Chat", icon: ChatsCircle, component: ChatPanel },
@@ -24,6 +24,7 @@ export const PANELS = {
 } satisfies Record<string, { title: string; icon: Icon; component: ComponentType }>;
 
 export type PanelKey = keyof typeof PANELS;
+export const isPanelKey = (v: string): v is PanelKey => v in PANELS;
 
 /** How the header menu groups panels: one dropdown per section. */
 export const PANEL_SECTIONS: { label: string; panels: PanelKey[] }[] = [

@@ -1,7 +1,3 @@
-.filters {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2) var(--space-3);
-  padding: var(--space-3) var(--space-4); border-bottom: var(--border-w) solid var(--border); align-items: end;
-}
 .props td { vertical-align: top; }
 .props .addr { white-space: normal; max-width: 320px; font-weight: 600; }
 .props tr.clickable { cursor: pointer; }
@@ -16,3 +12,15 @@
 .commute { margin-bottom: var(--space-2); }
 .features { margin: var(--space-1) 0; padding-left: var(--space-4); font-size: 12px; }
 .prop-detail a { color: var(--accent-text); }
+
+/* phones: the list is set larger so it reads at arm length.
+   Address, rent and beds stay in view; the other columns are in the expanded row. */
+@media (max-width: 720px) {
+  .props th, .props td { padding: var(--space-3) var(--space-2); }
+  .props td { font-size: 14px; }
+  .props td:first-child { white-space: normal; overflow-wrap: anywhere; }
+  .props .addr { max-width: none; font-size: 14px; line-height: 1.35; margin-bottom: 2px; }
+  .props td .small { font-size: 12px; line-height: 1.4; }
+  .props td.num b { font-size: 15px; }
+  .prop-detail { padding: var(--space-3); }
+}

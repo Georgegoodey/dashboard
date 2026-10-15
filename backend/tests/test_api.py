@@ -45,7 +45,7 @@ def test_areas_crud_and_validation(client: TestClient) -> None:
     assert created["outcode"] == "SW11"
     rows = client.get("/api/areas").json()
     assert rows[0]["outcode"] == "SW11" and rows[0]["enabled"] is True and rows[0]["properties"] == 0
-    assert client.put(f"/api/areas/{created['id']}", json={"enabled": False}).json() == {"ok": True}
+    assert client.put(f"/api/areas/{created['id']}", json={"enabled": False}).json()["ok"] is True
     assert client.get("/api/areas").json()[0]["enabled"] is False
     assert client.put("/api/areas/9999", json={"enabled": True}).status_code == 404
     assert client.delete(f"/api/areas/{created['id']}").status_code == 200
@@ -53,6 +53,7 @@ def test_areas_crud_and_validation(client: TestClient) -> None:
 
 
 def test_filters_round_trip_and_sweep_stored_listings(client: TestClient, db: Database) -> None:
+    client.post("/api/areas", json={"outcode": "SW11"})
     listings.insert_new(db, raw("a", rent="1500", beds=1, address="A"))
     listings.insert_new(db, raw("b", rent="4000", beds=2, address="B"))
     assert client.get("/api/filters").json() == {"min_bedrooms": 1, "max_bedrooms": 4, "max_rent": 3500}
@@ -203,3 +204,16 @@ def test_map_points_are_filtered_and_not_confused_with_a_property_id(client: Tes
     assert all(isinstance(p["rent_pcm"], float) for p in body["points"])          # numbers, not strings
     cheap = client.get("/api/properties/map", params={"max_rent": 2000}).json()
     assert [p["address"] for p in cheap["points"]] == ["A Road"]
+
+
+def test_changing_search_areas_updates_what_is_shown_straight_away(client: TestClient, db: Database) -> None:
+    area = client.post("/api/areas", json={"outcode": "SW11"}).json()
+    listings.insert_new(db, raw("a", address="A"))
+    assert client.get("/api/properties").json()["total"] == 1
+    off = client.put(f"/api/areas/{area['id']}", json={"enabled": False}).json()
+    assert off["hidden"] == 1 and client.get("/api/properties").json()["total"] == 0
+    assert client.get("/api/properties/map").json()["total"] == 0
+    on = client.put(f"/api/areas/{area['id']}", json={"enabled": True}).json()
+    assert on["restored"] == 1 and client.get("/api/properties").json()["total"] == 1
+    assert client.delete(f"/api/areas/{area['id']}").json()["hidden"] == 1
+    assert client.get("/api/properties").json()["total"] == 0

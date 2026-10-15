@@ -1,7 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useState } from "react";
-import { Badge, Button, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select, Spacer, Toolbar } from "@/components";
+import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select, Spacer, StatStrip, Toolbar } from "@/components";
 import { gbp, lettings, Property, PropertyDetail, PropertyFilters } from "../lib";
+import { FilterBar, FilterToggle } from "../filters";
 import "./properties.css";
 
 const PAGE = 50;
@@ -90,6 +91,7 @@ export default function PropertiesPanel() {
   const [order, setOrder] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<number | null>(null);
+  const [showFilters, setShowFilters] = useState(false); // phones only: the filters fold away to leave room for the list
 
   const filters: PropertyFilters = useDebounced({
     q: q || undefined, min_beds: num(minBeds), max_rent: num(maxRent), max_commute: num(maxCommute),
@@ -107,19 +109,34 @@ export default function PropertiesPanel() {
   const rows = list.data?.rows ?? [];
   const total = list.data?.total ?? 0;
   const s = status.data;
+  const detailsDone = s && s.active_listings > 0 ? 1 - s.detail_pending / s.active_listings : 1;
 
   return (
     <Panel>
+      <StatStrip
+        stats={[
+          { label: "Homes", value: total.toLocaleString("en-GB"), hint: s && s.active_listings > total ? `of ${s.active_listings.toLocaleString("en-GB")} active` : undefined },
+          {
+            label: "Advert details", muted: !s,
+            value: s ? `${Math.round(detailsDone * 100)}%` : "–",
+            hint: s && s.detail_pending > 0 ? `${s.detail_pending.toLocaleString("en-GB")} left` : "complete",
+            progress: s ? detailsDone : undefined,
+          },
+          {
+            label: "Commutes", muted: !s || s.places === 0,
+            value: !s || s.places === 0 ? "–" : s.commute_pending > 0 ? s.commute_pending.toLocaleString("en-GB") : "done",
+            hint: !s ? undefined : s.areas === 0 ? "add search areas in Settings" : s.places === 0 ? "set your work address in Settings" : s.commute_pending > 0 ? "journeys left to plan" : "all planned",
+          },
+        ]}
+      />
       <Toolbar>
-        <Badge>{total.toLocaleString()} homes</Badge>
-        {s && s.detail_pending > 0 && <Badge neutral>{s.detail_pending} advert details pending</Badge>}
-        {s && s.commute_pending > 0 && s.places > 0 && <Badge neutral>{s.commute_pending} commutes pending</Badge>}
+        <FilterToggle open={showFilters} onToggle={() => setShowFilters((v) => !v)} />
         <Spacer />
         <Button variant="ghost" size="sm" onClick={() => { list.refetch(); status.refetch(); }}>
           <I.rerun size={ICON_SIZE} /> Refresh
         </Button>
       </Toolbar>
-      <div className="filters">
+      <FilterBar open={showFilters}>
         <Field label="Search">
           <input className="input" placeholder="address or headline" value={q} onChange={(e) => setQ(e.target.value)} />
         </Field>
@@ -136,11 +153,9 @@ export default function PropertiesPanel() {
         <Field label="Order">
           <Select<"asc" | "desc"> value={order} onChange={setOrder} options={[{ value: "asc", label: "Low to high" }, { value: "desc", label: "High to low" }]} />
         </Field>
-      </div>
+      </FilterBar>
       {health.data && !health.data.database_ok && <Note kind="error">Database unavailable: {health.data.database_error || "is Docker running?"} Start it with: docker compose up -d db</Note>}
       {list.error && <Note kind="error">{list.error.message}</Note>}
-      {s && s.areas === 0 && <Note>No search areas yet. Add postcode areas in Settings, then run "Rightmove: search" in Jobs.</Note>}
-      {s && s.areas > 0 && s.places === 0 && <Note>Add your work (and home) address in Settings to get commute times.</Note>}
       <Scroll>
         {rows.length === 0 && !list.isPending && <Empty>No homes match. {total === 0 ? "Run the Rightmove search job to fetch some." : ""}</Empty>}
         {rows.length > 0 && (
@@ -148,8 +163,8 @@ export default function PropertiesPanel() {
             <table className="table props">
               <thead>
                 <tr>
-                  <th>Address</th><th className="num">Rent</th><th>Beds</th><th className="num">vs median</th>
-                  <th className="num">Work am</th><th className="num">Work pm</th><th className="num">Days</th><th />
+                  <th>Address</th><th className="num">Rent</th><th>Beds</th><th className="num hide-sm">vs median</th>
+                  <th className="num hide-sm">Work am</th><th className="num hide-sm">Work pm</th><th className="num hide-sm">Days</th><th className="hide-sm" />
                 </tr>
               </thead>
               <tbody>
@@ -162,11 +177,11 @@ export default function PropertiesPanel() {
                       </td>
                       <td className="num"><b>{gbp(p.rent_pcm)}</b>{p.price_changes > 0 && <span className="muted small"> ({p.price_changes}↕)</span>}</td>
                       <td>{p.bedrooms ?? "–"}{p.bathrooms ? ` / ${p.bathrooms}` : ""}</td>
-                      <td className="num"><VsMedian pct={p.rent_vs_median_pct} /></td>
-                      <td className="num">{commuteText(p.work_am_min, p.work_am_transfers)}</td>
-                      <td className="num">{commuteText(p.work_pm_min, p.work_pm_transfers)}</td>
-                      <td className="num">{p.days_on_market}</td>
-                      <td>{p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open advert in a new tab" aria-label="Open advert in a new tab"><I.external size={ICON_SIZE} /></a>}</td>
+                      <td className="num hide-sm"><VsMedian pct={p.rent_vs_median_pct} /></td>
+                      <td className="num hide-sm">{commuteText(p.work_am_min, p.work_am_transfers)}</td>
+                      <td className="num hide-sm">{commuteText(p.work_pm_min, p.work_pm_transfers)}</td>
+                      <td className="num hide-sm">{p.days_on_market}</td>
+                      <td className="hide-sm">{p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open advert in a new tab" aria-label="Open advert in a new tab"><I.external size={ICON_SIZE} /></a>}</td>
                     </tr>
                     {open === p.id && <tr className="detail-row"><td colSpan={8}><Detail id={p.id} /></td></tr>}
                   </Fragment>

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Badge, Button, Code, Disclosure, I, ICON_SIZE, Panel, Scroll, Spacer, Toolbar } from "@/components";
+import { Button, Code, Disclosure, I, ICON_SIZE, Panel, Scroll, Spacer, Toolbar } from "@/components";
 import { GALLERY } from "../gallery";
 import { QUERIES } from "../vega/queries";
 import { VegaBoxplot, VegaHeatmap, VegaLines, VegaRegression } from "../vega/samples";
@@ -8,13 +8,11 @@ import { DataChart } from "../workbench";
 
 /** The chart panel shell: a header, the charts, and the SQL behind them. */
 function ChartPanel({
-  library,
-  note,
+  summary,
   queries,
   children,
 }: {
-  library: string;
-  note: string;
+  summary: string;
   queries: { title: string; sql: string }[];
   children: ReactNode;
 }) {
@@ -22,8 +20,7 @@ function ChartPanel({
   return (
     <Panel>
       <Toolbar>
-        <Badge>{library}</Badge>
-        <span className="muted">{note}</span>
+        <span className="muted">{summary}</span>
         <Spacer />
         <Button
           variant="ghost"
@@ -50,8 +47,7 @@ function ChartPanel({
 
 export const ChartsPanel = () => (
   <ChartPanel
-    library="Vega-Lite"
-    note="hand-written specs, then charts inferred from each result"
+    summary={`${4 + GALLERY.length} analyses, recomputed from live listings`}
     queries={[...Object.values(QUERIES), ...GALLERY]}
   >
     <VegaHeatmap />

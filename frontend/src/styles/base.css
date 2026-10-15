@@ -14,3 +14,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, select, summary, label, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+body { overscroll-behavior: none; }
+
+/* phones: hide a less important table column (its content is available elsewhere, e.g. an expanded row) */
+@media (max-width: 720px) {
+  .hide-sm { display: none; }
+}

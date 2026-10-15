@@ -191,12 +191,14 @@ def save_detail(db: Database, listing_id: int, raw: RawListing) -> None:
 _OUTSIDE = (
     "((%(min_b)s::int IS NOT NULL AND p.bedrooms IS NOT NULL AND p.bedrooms < %(min_b)s::int) "
     "OR (%(max_b)s::int IS NOT NULL AND p.bedrooms IS NOT NULL AND p.bedrooms > %(max_b)s::int) "
-    "OR (%(max_r)s::numeric IS NOT NULL AND l.rent_pcm IS NOT NULL AND l.rent_pcm > %(max_r)s::numeric * 1.01))"
+    "OR (%(max_r)s::numeric IS NOT NULL AND l.rent_pcm IS NOT NULL AND l.rent_pcm > %(max_r)s::numeric * 1.01)"
+    # a home in a postcode area that is switched off (or removed) is hidden too; homes with no known outcode stay visible
+    "  OR (p.outcode IS NOT NULL AND NOT EXISTS (SELECT 1 FROM search_areas sa WHERE sa.enabled AND sa.outcode = p.outcode)))"
 )
 
 
 def apply_filters(db: Database, f: SearchFilters) -> dict[str, int]:
-    """Hide stored listings outside the filters ('filtered') and restore ones that are inside again."""
+    """Hide stored listings outside the search filters or outside the enabled search areas ('filtered'), and restore the rest."""
     params = {"min_b": f.min_bedrooms, "max_b": f.max_bedrooms, "max_r": f.max_rent}
     with db.conn() as c:
         hidden = c.execute(

@@ -94,6 +94,7 @@ def test_withdraw_marks_a_listing(db: Database) -> None:
 
 
 def test_filters_hide_and_restore_without_deleting(db: Database) -> None:
+    areas.upsert(db, "SW11", "Battersea", True)
     listings.insert_new(db, raw("a", rent="1500", beds=1, address="A"))
     listings.insert_new(db, raw("b", rent="3000", beds=3, address="B"))
     listings.insert_new(db, raw("c", rent="5000", beds=2, address="C"))      # over the rent limit
@@ -183,3 +184,32 @@ def test_job_run_bookkeeping(db: Database) -> None:
     jobs.finish_run(db, run2, "ok", 3, 1, {"x": 1}, None)
     assert jobs.last_ok(db, "j") is not None and run2 > run
     assert [r["id"] for r in jobs.recent_runs(db, 10)] == [run2, run]
+
+
+def test_homes_in_switched_off_areas_are_hidden_and_come_back(db: Database) -> None:
+    sw11 = areas.upsert(db, "SW11", "Battersea", True)
+    areas.upsert(db, "KT1", "Kingston", True)
+    listings.insert_new(db, raw("a", address="A"))
+    listings.insert_new(db, raw("k", address="K", postcode="KT1 1AA"))
+    nowhere = raw("n", address="N")
+    nowhere.postcode = nowhere.outcode = None
+    listings.insert_new(db, nowhere)                                           # no known outcode: never hidden
+    assert filters.refresh(db) == {"hidden": 0, "restored": 0}
+    areas.update(db, sw11, None, False)
+    assert filters.refresh(db) == {"hidden": 1, "restored": 0}
+    assert {r["address"] for r in db.fetch_all("SELECT address FROM v_properties")} == {"K", "N"}
+    areas.update(db, sw11, None, True)
+    assert filters.refresh(db) == {"hidden": 0, "restored": 1}
+    assert db.fetch_one("SELECT count(*) AS n FROM v_properties") == {"n": 3}
+
+
+def test_area_and_filter_rules_do_not_undo_each_other(db: Database) -> None:
+    sw11 = areas.upsert(db, "SW11", "Battersea", True)
+    listings.insert_new(db, raw("cheap", rent="1500", address="C"))
+    listings.insert_new(db, raw("dear", rent="5000", address="D"))            # outside the rent filter
+    filters.update(db, SearchFilters(min_bedrooms=None, max_bedrooms=None, max_rent=3500))
+    areas.update(db, sw11, None, False)
+    filters.refresh(db)                                                        # both hidden: one by area, one by area+rent
+    areas.update(db, sw11, None, True)
+    assert filters.refresh(db) == {"hidden": 0, "restored": 1}                # only the home inside the filters returns
+    assert [r["address"] for r in db.fetch_all("SELECT address FROM v_properties")] == ["C"]

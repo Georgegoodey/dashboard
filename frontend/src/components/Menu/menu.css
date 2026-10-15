@@ -26,3 +26,9 @@
 .menu-lead { display: inline-flex; align-items: center; justify-content: center; width: 20px; flex-shrink: 0; }
 .menu-heading { padding: var(--space-2) var(--space-3) var(--space-1); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
 .menu-sep { height: var(--border-w); margin: var(--space-1) 0; background: var(--border); }
+
+.menu-list { max-width: calc(100vw - 24px); max-height: 70dvh; overflow-y: auto; }
+@media (pointer: coarse) {
+  .menu-trigger { height: 40px; }
+  .menu-item { height: 44px; }
+}

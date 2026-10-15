@@ -188,7 +188,7 @@ function make(query: QueryKey, height: number, build: (t: ChartTokens, rows: Row
   return function VegaSample() {
     const t = useChartTokens();
     return (
-      <SampleChart query={query} library="Vega-Lite" height={height}>
+      <SampleChart query={query} height={height}>
         {(rows) => <SpecView build={() => build(t, rows)} deps={[t, rows]} />}
       </SampleChart>
     );

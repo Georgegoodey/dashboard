@@ -1,4 +1,60 @@
-.job-card { margin-bottom: var(--space-3); }
-.job-grid { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: flex-end; margin-bottom: var(--space-2); }
-.job-grid .field { width: 120px; }
-.job-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-bottom: var(--space-1); }
+/* Jobs: one dense row per job; click a row for its details and schedule.
+   Layout follows the width of the panel (a docked tab can be as narrow as a phone), not the screen. */
+.jobs-list {
+  container-type: inline-size; margin: 0 3px var(--space-4) 0;
+  border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow); background: var(--bg);
+}
+
+.jrow { border-top: var(--rule-w) solid var(--border); }
+.jrow-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); padding-right: var(--space-2); }
+.jhead { border-bottom: var(--border-w) solid var(--border-strong); background: var(--surface); }
+.jhead .jrow-main { cursor: default; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.jrun-gap { width: 64px; }
+
+.jrow-main {
+  display: grid; grid-template-columns: minmax(0, 2.2fr) 110px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center; gap: var(--space-3); width: 100%; min-height: 48px; padding: var(--space-2) var(--space-3);
+  font: inherit; text-align: left; color: var(--text); background: transparent; border: 0; cursor: pointer;
+}
+.jrow-main:hover { background: var(--surface-hover); }
+.jrow-open > .jrow-line { background: var(--surface); }
+.jname { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; overflow-wrap: anywhere; }
+.jcaret { flex-shrink: 0; color: var(--text-muted); transition: transform var(--t-fast) var(--ease); }
+.jrow-open .jcaret { transform: rotate(90deg); }
+.jsched, .jlast, .jnext { color: var(--text-muted); overflow-wrap: anywhere; }
+.jmeta { display: none; }
+
+.jstate { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 700; white-space: nowrap; }
+.jstate i { width: 10px; height: 10px; flex-shrink: 0; background: var(--text-muted); }
+.jstate-ok i { background: var(--ok); }
+.jstate-run i { background: var(--accent); animation: jpulse 1.2s steps(2, jump-none) infinite; }
+.jstate-bad { color: var(--danger-text); }
+.jstate-bad i { background: var(--danger-text); }
+@keyframes jpulse { 50% { opacity: .25; } }
+
+.jdetail { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) var(--space-4) var(--space-4); border-top: var(--rule-w) dashed var(--border); background: var(--surface); }
+.jdesc { margin: 0; color: var(--text-muted); }
+.jfacts { display: grid; gap: var(--space-2); margin: 0; }
+.jfacts dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.jfacts dd { margin: 0; overflow-wrap: anywhere; }
+.jedit > .btn { justify-self: start; }
+.jedit { display: grid; grid-template-columns: auto repeat(3, minmax(0, 140px)) auto; gap: var(--space-3); align-items: end; }
+
+/* narrow panels: each row folds to two lines (name + state, then a short summary) and the table header goes */
+@container (max-width: 620px) {
+  .jhead { display: none; }
+  .jrow-main { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--space-1); }
+  .jsched, .jlast, .jnext { display: none; }
+  .jmeta { display: block; grid-column: 1 / -1; padding-left: calc(12px + var(--space-2)); color: var(--text-muted); font-size: 12px; }
+  .jrun-label { display: none; }
+  .jedit { grid-template-columns: 1fr 1fr; }
+  .jedit > .btn { grid-column: 1 / -1; justify-self: stretch; }
+}
+
+/* run history: hide the less useful columns when the panel is narrow */
+.runs-wrap { container-type: inline-size; }
+.runs td:first-child { white-space: normal; overflow-wrap: break-word; }
+@container (max-width: 520px) {
+  .runs .hide-narrow { display: none; }
+  .runs th, .runs td { padding: var(--space-2); }
+}

@@ -1,0 +1,12 @@
+.filters {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4); border-bottom: var(--border-w) solid var(--border); align-items: end;
+}
+.filters-toggle { display: none; }
+
+/* phones: the bar folds away to leave room for the list or map; the toggle in the toolbar brings it back */
+@media (max-width: 720px) {
+  .filters-toggle { display: inline-flex; }
+  .filters:not(.filters-open) { display: none; }
+  .filters { padding: var(--space-3); grid-template-columns: 1fr 1fr; }
+}

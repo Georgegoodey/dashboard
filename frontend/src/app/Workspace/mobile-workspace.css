@@ -1,0 +1,4 @@
+.mobile-workspace {
+  height: 100%; overflow: hidden; background: var(--surface);
+  border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow);
+}

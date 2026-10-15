@@ -38,20 +38,21 @@ def add_area(body: AreaIn, rt: Rt) -> Any:
     outcode = body.outcode.strip().upper()
     if not OUTCODE_RE.match(outcode):
         raise InvalidInput(f"'{body.outcode}' is not a UK outcode such as SW11 or TW9")
-    return {"id": areas.upsert(rt.db, outcode, body.label or outcode, body.enabled), "outcode": outcode}
+    area_id = areas.upsert(rt.db, outcode, body.label or outcode, body.enabled)
+    return {"id": area_id, "outcode": outcode, **filters.refresh(rt.db)}
 
 
 @router.put("/areas/{area_id}")
 def update_area(area_id: int, body: AreaUpdate, rt: Rt) -> Any:
     if not areas.update(rt.db, area_id, body.label, body.enabled):
         raise NotFound("Unknown area")
-    return {"ok": True}
+    return {"ok": True, **filters.refresh(rt.db)}
 
 
 @router.delete("/areas/{area_id}")
 def delete_area(area_id: int, rt: Rt) -> Any:
     areas.delete(rt.db, area_id)
-    return {"ok": True}
+    return {"ok": True, **filters.refresh(rt.db)}
 
 
 # ── home and work ─────────────────────────────────────────────────────────────────────────────────────────────
