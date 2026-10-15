@@ -1,0 +1,6 @@
+/* Shared by the lettings panels. Uses only the shared tokens, so every palette applies. */
+.small { font-size: 12px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.good { color: var(--chart-2, var(--accent-text)); font-weight: 600; }
+.bad { color: var(--danger-text); font-weight: 600; }
+.row-actions { display: flex; gap: var(--space-2); align-items: center; }

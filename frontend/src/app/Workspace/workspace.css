@@ -1,0 +1,67 @@
+/* Re-skin FlexLayout with the semantic tokens: square panels with heavy borders. */
+.flexlayout__layout {
+  --color-text: var(--text);
+  --color-background: var(--bg);
+  --color-base: var(--bg);
+  --color-1: var(--surface);
+  --color-2: var(--surface-raised);
+  --color-3: var(--surface-hover);
+  --color-4: var(--border);
+  --color-5: var(--border-strong);
+  --color-6: var(--border-strong);
+  --color-drag1: var(--accent);
+  --color-drag2: var(--accent);
+  --color-drag1-background: var(--accent-soft);
+  --color-drag2-background: var(--accent-soft);
+  --color-icon: var(--text-muted);
+  --color-overflow: var(--text-muted);
+  --color-tab-selected: var(--text);
+  --color-tab-selected-background: var(--surface-raised);
+  --color-tab-unselected: var(--text-muted);
+  --color-tabset-background: var(--surface);
+  --color-tabset-background-selected: var(--surface);
+  --color-tabset-header-background: var(--surface);
+  --color-tabset-divider-line: var(--border);
+  --color-tab-content: var(--surface);
+  --color-splitter: var(--bg);
+  --color-splitter-hover: var(--accent-soft);
+  --color-splitter-drag: var(--accent-soft-border);
+  --color-toolbar-button-hover: var(--surface-hover);
+  --color-drag-rect-border: var(--accent);
+  --color-drag-rect-background: var(--surface);
+  --color-drag-rect: var(--text);
+  --color-popup-border: var(--border);
+  --color-popup-unselected-background: var(--surface);
+  --color-popup-selected-background: var(--surface-hover);
+  --font-family: var(--font);
+  --font-size: 13px;
+}
+
+.flexlayout__tabset {
+  border: var(--border-w) solid var(--border);
+  box-shadow: var(--shadow);
+  margin: 0 3px 3px 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+.flexlayout__tabset { border-color: var(--border-strong); }
+.flexlayout__tabset_tabbar_outer {
+  background: var(--surface);
+  border-bottom: var(--border-w) solid var(--border);
+  padding: 0 var(--space-3); min-height: var(--bar-h); align-items: center;
+}
+.flexlayout__tab { background: var(--surface); }
+.flexlayout__tab_button {
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-3);
+  margin: 0 2px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .04em; font-size: 12px;
+}
+.flexlayout__tab_button--selected { background: var(--accent); color: var(--on-accent); }
+.flexlayout__tab_button--selected .flexlayout__tab_button_content { color: var(--on-accent); }
+.flexlayout__tab_button:hover:not(.flexlayout__tab_button--selected) { background: var(--surface-hover); }
+.flexlayout__tab_toolbar_button { border-radius: var(--radius-1); }
+.flexlayout__splitter:hover { background: var(--accent-soft); }
+.flexlayout__tab_button_leading { display: inline-flex; align-items: center; margin-right: var(--space-1); color: var(--text-muted); }
+.flexlayout__tab_button--selected .flexlayout__tab_button_leading { color: var(--on-accent); }
+.flexlayout__tab_button_trailing, .flexlayout__tab_toolbar_button { display: inline-flex; align-items: center; justify-content: center; }

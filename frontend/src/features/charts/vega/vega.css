@@ -1,0 +1,11 @@
+.vega-embed { width: 100%; height: 100%; }
+.vega-embed canvas, .vega-embed svg { display: block; }
+#vg-tooltip-element.vg-tooltip {
+  background: var(--surface-raised) !important; color: var(--text) !important;
+  border: var(--border-w) solid var(--border-strong) !important; border-radius: 0 !important;
+  padding: var(--space-1) var(--space-2) !important; font: 12px/1.5 var(--font) !important;
+  box-shadow: var(--shadow) !important;
+}
+#vg-tooltip-element.vg-tooltip table { border-spacing: 0 !important; }
+#vg-tooltip-element.vg-tooltip td.key { color: var(--text-muted) !important; }
+#vg-tooltip-element.vg-tooltip td.value { color: var(--text) !important; }

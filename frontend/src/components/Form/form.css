@@ -1,0 +1,29 @@
+/* form controls: same height, border and square corners as buttons */
+.input {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: var(--border-w) solid var(--border); border-radius: var(--radius-1);
+  padding: var(--space-2) var(--space-3); font: inherit; resize: none;
+}
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
+.input.mono { font-family: var(--mono); font-size: 13px; resize: vertical; }
+.select { height: 32px; padding: 0 var(--space-2); cursor: pointer; }
+
+.field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.field-label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.check { display: flex; align-items: center; gap: var(--space-2); height: 32px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+
+.chip {
+  height: 28px; padding: 0 var(--space-2); font: inherit; font-size: 13px; cursor: pointer;
+  color: var(--text-muted); background: transparent;
+  border: var(--border-w) solid var(--border); border-radius: var(--radius-1);
+}
+.chip:hover { border-color: var(--border-strong); color: var(--text); }
+.chip-on { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-soft-border); box-shadow: 2px 2px 0 var(--accent-soft-border); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+.segmented { display: inline-flex; border: var(--border-w) solid var(--border-strong); overflow: hidden; }
+.segmented button { display: inline-flex; align-items: center; gap: var(--space-1); height: 28px; padding: 0 var(--space-3); font: inherit; font-size: 13px; cursor: pointer; color: var(--text-muted); background: transparent; border: 0; }
+.segmented button + button { border-left: var(--border-w) solid var(--border-strong); }
+.segmented button.on { background: var(--accent); color: var(--on-accent); }
+.segmented svg, .chip svg { flex-shrink: 0; }

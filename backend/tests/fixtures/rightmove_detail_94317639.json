@@ -1,0 +1,51 @@
+{
+ "id": "94317639",
+ "address": {
+  "displayAddress": "Rosenau Road, \nBattersea Park, SW11",
+  "countryCode": "GB",
+  "deliveryPointId": 88538659,
+  "ukCountry": "England",
+  "outcode": "SW11",
+  "incode": "4QX"
+ },
+ "location": {
+  "latitude": 51.476617,
+  "longitude": -0.165246,
+  "circleRadiusOnMap": 0,
+  "zoomLevel": 15,
+  "pinType": "ACCURATE_POINT",
+  "showMap": true
+ },
+ "lettings": {
+  "letAvailableDate": "Ask agent",
+  "deposit": 2885,
+  "minimumTermInMonths": 18,
+  "letType": "Long term",
+  "furnishType": "Furnished"
+ },
+ "bedrooms": 2,
+ "bathrooms": 1,
+ "propertySubType": "Flat",
+ "keyFeatures": [
+  "Split Level ",
+  "Eat-in Kitchen ",
+  "Spacious Reception",
+  "Close to Battersea Park"
+ ],
+ "customer": {
+  "branchDisplayName": "Chestertons, Battersea Park",
+  "branchName": "Battersea Park",
+  "companyName": "Campions - Chestertons "
+ },
+ "text": {
+  "description": "A charming two double bedroom split level property next to Battersea Park.<br /><br />Benefiting from eat-in kitchen, a good size reception room with separate dining area, a large bathroom & a loft extension which now makes a spacious principal bedroom featuring an exposed brick wall. Spacious apartment offers over 900 sqft of living space and further benefits from Wandsworth Council tax and parking with resident permit.<br /><br />This apartment benefits from the peaceful location, only a stone\u2019s throw from Battersea Park and the buzz of Battersea Power Station.<br /><br />The property is a s"
+ },
+ "prices": {
+  "primaryPrice": "\u00a32,500 pcm",
+  "secondaryPrice": "\u00a3577 pw",
+  "displayPriceQualifier": "",
+  "pricePerSqFt": null,
+  "message": null,
+  "exchangeRate": null
+ }
+}

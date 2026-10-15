@@ -1,0 +1,7 @@
+.code {
+  margin: 0; padding: var(--space-2) var(--space-3); background: var(--surface);
+  border: var(--border-w) solid var(--border); border-radius: var(--radius-1);
+  font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; overflow: auto; max-height: 220px;
+}
+.code + .code { margin-top: var(--space-2); }
+.code.out { border-left: 6px solid var(--accent); }

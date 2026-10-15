@@ -1,0 +1,53 @@
+{
+ "id": "94362501",
+ "address": {
+  "displayAddress": "The Lark, \nMoat Street, SW11",
+  "countryCode": "GB",
+  "deliveryPointId": null,
+  "ukCountry": "England",
+  "outcode": "SW11",
+  "incode": "7EA"
+ },
+ "location": {
+  "latitude": 51.48071,
+  "longitude": -0.136418,
+  "circleRadiusOnMap": 0,
+  "zoomLevel": 15,
+  "pinType": "ACCURATE_POINT",
+  "showMap": true
+ },
+ "lettings": {
+  "letAvailableDate": "26/10/2026",
+  "deposit": 4258,
+  "minimumTermInMonths": 12,
+  "letType": "Long term",
+  "furnishType": "Furnished"
+ },
+ "bedrooms": 2,
+ "bathrooms": 2,
+ "propertySubType": "Flat",
+ "keyFeatures": [
+  "Fully furnished apartments",
+  "Private balconies (on selected units)",
+  "Pet-friendly development.",
+  "Amenities: Gym, cinema room, co-working spaces, podium garden, parcel lockers, bike storage.",
+  "Location: Zone 1, 5 mins to Battersea Power Station &amp; Northern Line.",
+  "Close to Battersea Park, riverside walks, caf\u00e9s &amp; dining."
+ ],
+ "customer": {
+  "branchDisplayName": "Chestertons Key Clients, London",
+  "branchName": "London",
+  "companyName": "Campions - Chestertons "
+ },
+ "text": {
+  "description": "Welcome to The Lark \u2013 Modern Living in Nine Elms.<br /><br />The Lark offers more than beautifully designed apartments -  it delivers a lifestyle built around comfort, convenience, and community. Enjoy fully furnished homes, with balconies available on selected apartments, pet friendly living, and an impressive suite of amenities including a residents\u2019 gym, cinema room, co working spaces, podium garden, and secure parcel lockers.<br /><br />Prime Zone 1 Location:<br /><br />Just five minutes from Battersea Power Station and the Northern Line, The Lark puts you within easy reach of the West End"
+ },
+ "prices": {
+  "primaryPrice": "\u00a33,690 pcm",
+  "secondaryPrice": "\u00a3852 pw",
+  "displayPriceQualifier": "",
+  "pricePerSqFt": null,
+  "message": null,
+  "exchangeRate": null
+ }
+}

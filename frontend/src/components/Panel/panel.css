@@ -1,0 +1,10 @@
+.panel { display: flex; flex-direction: column; height: 100%; background: var(--surface); }
+.scroll { flex: 1; min-height: 0; overflow: auto; padding: var(--space-4); }
+.toolbar, .footer {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-height: var(--bar-h); padding: var(--space-2) var(--space-4); flex-shrink: 0;
+}
+.toolbar { border-bottom: var(--border-w) solid var(--border); }
+.footer  { border-top: var(--border-w) solid var(--border); }
+.section { padding: var(--space-3) var(--space-4); border-bottom: var(--border-w) solid var(--border); flex-shrink: 0; }
+.spacer { flex: 1; }

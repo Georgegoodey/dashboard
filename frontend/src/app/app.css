@@ -1,0 +1,7 @@
+/* The shell sits inside a global margin so no border or shadow touches the screen edge.
+   The extra right/bottom space is room for the 3px hard shadows. */
+.app {
+  display: flex; flex-direction: column; gap: var(--space-4); height: 100%;
+  padding: var(--space-4) calc(var(--space-4) + 3px) calc(var(--space-4) + 3px) var(--space-4);
+}
+.app-main { position: relative; flex: 1; min-height: 0; }

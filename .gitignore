@@ -1,0 +1,34 @@
+# dependencies and build output
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+
+# secrets: every .env file, but the template stays tracked
+.env
+.env.*
+!.env.example
+
+# tool and editor folders
+.claude/
+.cursor/
+.idea/
+.vscode/
+
+# not tracked: project docs and developer-only scripts (scripts/ci/ stays tracked)
+/docs/
+/scripts/dev/
+
+# tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# local data
+/data/
+.fastembed_cache/

@@ -1,0 +1,18 @@
+.msg { margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3); box-shadow: var(--shadow); max-width: 88%; border-width: var(--border-w); border-style: solid; }
+.msg.user { background: var(--accent-soft); border-color: var(--accent-soft-border); margin-left: auto; }
+.msg.assistant { background: var(--surface-raised); border-color: var(--border); }
+.msg.has-results { max-width: 100%; }
+.msg .card { margin: var(--space-1) 0 var(--space-3); }
+.msg .card:last-child { margin-bottom: 0; }
+
+/* markdown only: SQL results above use .table, so these rules must not leak onto them */
+.md p { margin: 0 0 .5em; }
+.md p:last-child { margin: 0; }
+.md code { font-family: var(--mono); font-size: 12px; background: var(--bg); padding: 1px 4px; border: var(--rule-w) solid var(--border); }
+.md table { border-collapse: collapse; margin: var(--space-2) 0; font-size: 13px; }
+.md th, .md td { border: var(--rule-w) solid var(--border); padding: 2px var(--space-2); }
+.msg .card + .md { margin-top: var(--space-2); }
+
+.sample { opacity: .75; }
+.composer { align-items: flex-end; }
+.composer .input { height: 36px; padding-top: 6px; padding-bottom: 6px; }

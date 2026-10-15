@@ -1,0 +1,140 @@
+/* Retro themes built from Radix Colors. Each theme picks a tinted neutral (--n-*) and an accent (--a-*),
+   the semantic tokens below are written once, and light/dark comes from Radix's own .dark scales.
+   Theme = data-theme on <html>; mode = .dark class. See hooks/useTheme.ts. */
+@import "@radix-ui/colors/amber.css";
+@import "@radix-ui/colors/blue.css";
+@import "@radix-ui/colors/cyan.css";
+@import "@radix-ui/colors/grass.css";
+@import "@radix-ui/colors/indigo.css";
+@import "@radix-ui/colors/iris.css";
+@import "@radix-ui/colors/mauve.css";
+@import "@radix-ui/colors/pink.css";
+@import "@radix-ui/colors/plum.css";
+@import "@radix-ui/colors/ruby.css";
+@import "@radix-ui/colors/sage.css";
+@import "@radix-ui/colors/sky.css";
+@import "@radix-ui/colors/slate.css";
+@import "@radix-ui/colors/teal.css";
+@import "@radix-ui/colors/violet.css";
+@import "@radix-ui/colors/amber-dark.css";
+@import "@radix-ui/colors/blue-dark.css";
+@import "@radix-ui/colors/cyan-dark.css";
+@import "@radix-ui/colors/grass-dark.css";
+@import "@radix-ui/colors/indigo-dark.css";
+@import "@radix-ui/colors/iris-dark.css";
+@import "@radix-ui/colors/mauve-dark.css";
+@import "@radix-ui/colors/pink-dark.css";
+@import "@radix-ui/colors/plum-dark.css";
+@import "@radix-ui/colors/ruby-dark.css";
+@import "@radix-ui/colors/sage-dark.css";
+@import "@radix-ui/colors/sky-dark.css";
+@import "@radix-ui/colors/slate-dark.css";
+@import "@radix-ui/colors/teal-dark.css";
+@import "@radix-ui/colors/violet-dark.css";
+
+[data-theme="terminal"] {
+  --n-1: var(--sage-1); --a-1: var(--teal-1);
+  --n-2: var(--sage-2); --a-2: var(--teal-2);
+  --n-3: var(--sage-3); --a-3: var(--teal-3);
+  --n-4: var(--sage-4); --a-4: var(--teal-4);
+  --n-5: var(--sage-5); --a-5: var(--teal-5);
+  --n-6: var(--sage-6); --a-6: var(--teal-6);
+  --n-7: var(--sage-7); --a-7: var(--teal-7);
+  --n-8: var(--sage-8); --a-8: var(--teal-8);
+  --n-9: var(--sage-9); --a-9: var(--teal-9);
+  --n-10: var(--sage-10); --a-10: var(--teal-10);
+  --n-11: var(--sage-11); --a-11: var(--teal-11);
+  --n-12: var(--sage-12); --a-12: var(--teal-12);
+  --on-accent: #fff;
+  --chart-1: var(--teal-9);
+  --chart-2: var(--amber-9);
+  --chart-3: var(--ruby-9);
+  --chart-4: var(--grass-9);
+  --chart-5: var(--sky-9);
+  --chart-6: var(--plum-9);
+}
+[data-theme="synth"] {
+  --n-1: var(--mauve-1); --a-1: var(--violet-1);
+  --n-2: var(--mauve-2); --a-2: var(--violet-2);
+  --n-3: var(--mauve-3); --a-3: var(--violet-3);
+  --n-4: var(--mauve-4); --a-4: var(--violet-4);
+  --n-5: var(--mauve-5); --a-5: var(--violet-5);
+  --n-6: var(--mauve-6); --a-6: var(--violet-6);
+  --n-7: var(--mauve-7); --a-7: var(--violet-7);
+  --n-8: var(--mauve-8); --a-8: var(--violet-8);
+  --n-9: var(--mauve-9); --a-9: var(--violet-9);
+  --n-10: var(--mauve-10); --a-10: var(--violet-10);
+  --n-11: var(--mauve-11); --a-11: var(--violet-11);
+  --n-12: var(--mauve-12); --a-12: var(--violet-12);
+  --on-accent: #fff;
+  --chart-1: var(--violet-9);
+  --chart-2: var(--pink-9);
+  --chart-3: var(--cyan-9);
+  --chart-4: var(--amber-9);
+  --chart-5: var(--grass-9);
+  --chart-6: var(--blue-9);
+}
+[data-theme="blue"] {
+  --n-1: var(--slate-1); --a-1: var(--blue-1);
+  --n-2: var(--slate-2); --a-2: var(--blue-2);
+  --n-3: var(--slate-3); --a-3: var(--blue-3);
+  --n-4: var(--slate-4); --a-4: var(--blue-4);
+  --n-5: var(--slate-5); --a-5: var(--blue-5);
+  --n-6: var(--slate-6); --a-6: var(--blue-6);
+  --n-7: var(--slate-7); --a-7: var(--blue-7);
+  --n-8: var(--slate-8); --a-8: var(--blue-8);
+  --n-9: var(--slate-9); --a-9: var(--blue-9);
+  --n-10: var(--slate-10); --a-10: var(--blue-10);
+  --n-11: var(--slate-11); --a-11: var(--blue-11);
+  --n-12: var(--slate-12); --a-12: var(--blue-12);
+  --on-accent: #fff;
+  --chart-1: var(--blue-9);
+  --chart-2: var(--sky-9);
+  --chart-3: var(--indigo-9);
+  --chart-4: var(--cyan-9);
+  --chart-5: var(--slate-9);
+  --chart-6: var(--iris-9);
+}
+
+html {
+  --bg: var(--n-2);
+  --surface: var(--n-1);
+  --surface-raised: var(--n-3);
+  --surface-hover: var(--n-4);
+  --border: var(--n-11);
+  --border-strong: var(--n-12);
+  --text: var(--n-12);
+  --text-muted: var(--n-11);
+  --accent: var(--a-9);
+  --accent-hover: var(--a-10);
+  --accent-soft: var(--a-3);
+  --accent-soft-border: var(--a-7);
+  --accent-text: var(--a-11);
+  --danger-text: #c62a2f;
+  --danger-soft: #fbe3e2;
+
+  /* shape: square corners, heavy borders, hard offset shadows */
+  --radius-1: 0;
+  --radius-2: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --border-w: 2px;
+  --rule-w: 1px;        /* hairlines inside tables */
+  --shadow: 3px 3px 0 var(--border-strong);
+  --bar-h: 44px;
+
+  --font: "Cascadia Mono", "Lucida Console", Consolas, "Courier New", monospace;
+  --mono: var(--font);
+}
+
+html.dark {
+  color-scheme: dark;
+  --border: var(--n-8);
+  --border-strong: var(--n-10);
+  --accent-soft: color-mix(in srgb, var(--a-9) 18%, transparent);
+  --danger-text: #ff9592;
+  --danger-soft: #3b1219;
+  --shadow: 3px 3px 0 #000;
+}

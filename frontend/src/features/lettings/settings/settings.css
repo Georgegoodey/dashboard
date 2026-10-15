@@ -1,0 +1,9 @@
+.settings-card { margin-bottom: var(--space-3); }
+.form-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+.form-row > .field { flex: 1 1 180px; }
+.profile-row { border-top: var(--rule-w) solid var(--border); padding-top: var(--space-3); }
+.profile-row:first-of-type { border-top: 0; padding-top: 0; }
+.profile-label { flex: 1 1 200px; }
+.areas { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.area { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-2); border: var(--border-w) solid var(--border); background: var(--surface-raised); }
+.area.off { opacity: .55; }

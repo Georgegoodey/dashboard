@@ -1,0 +1,4 @@
+.note { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-3) var(--space-4) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-1); white-space: pre-wrap; font-size: 13px; }
+.note svg { margin-top: 2px; flex-shrink: 0; }
+.note-error { background: var(--danger-soft); color: var(--danger-text); border: var(--border-w) solid color-mix(in srgb, var(--danger-text) 30%, transparent); }
+.note-info { background: var(--accent-soft); color: var(--accent-text); border: var(--border-w) solid var(--accent-soft-border); }
