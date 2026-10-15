@@ -5,7 +5,10 @@
 .props td { vertical-align: top; }
 .props .addr { white-space: normal; max-width: 320px; font-weight: 600; }
 .props tr.clickable { cursor: pointer; }
+.props td { transition: background-color var(--t-fast) var(--ease); }
 .props tr.open td, .props tr.clickable:hover td { background: var(--surface-hover); }
+.props td a { transition: transform var(--t-fast) var(--ease); }
+.props td a:hover { transform: translate(1px, -1px); }
 .props td a { color: var(--accent-text); display: inline-flex; }
 .detail-row > td { padding: 0; background: var(--bg); white-space: normal; }
 .prop-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); padding: var(--space-3) var(--space-4); }

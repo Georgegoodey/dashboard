@@ -8,14 +8,15 @@ Findings from the phase-0 spike:
 """
 import json
 import re
+from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any, AsyncIterator
+from typing import Any
 
 import httpx
 from selectolax.lexbor import LexborHTMLParser as HTMLParser
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from app.pipeline.normalise import (OUTCODE_RE, normalise_postcode, parse_date, parse_iso_datetime, pcm_from)
+from app.pipeline.normalise import OUTCODE_RE, normalise_postcode, parse_date, parse_iso_datetime, pcm_from
 from app.sources.base import Blocked, NotFound, RawListing, SearchFilters, Throttle
 
 BASE = "https://www.rightmove.co.uk"
@@ -125,7 +126,8 @@ def extract_json_object(html: str, marker: str) -> dict | None:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                return json.loads(html[start:j + 1])
+                parsed: dict[Any, Any] = json.loads(html[start:j + 1])
+                return parsed
     return None
 
 
@@ -232,7 +234,7 @@ class Rightmove:
         self.throttle = throttle or Throttle(min_delay=2.0, jitter=2.0)  # the guide advises 2 to 5 seconds
         self.max_pages = max_pages
 
-    async def _get(self, client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    async def _get(self, client: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:
         headers = {"Referer": f"{BASE}/", **kwargs.pop("headers", {})}
         async for attempt in AsyncRetrying(
             retry=retry_if_exception_type((httpx.TransportError, _Retryable)),

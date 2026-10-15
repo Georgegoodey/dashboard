@@ -166,7 +166,7 @@ export default function PropertiesPanel() {
                       <td className="num">{commuteText(p.work_am_min, p.work_am_transfers)}</td>
                       <td className="num">{commuteText(p.work_pm_min, p.work_pm_transfers)}</td>
                       <td className="num">{p.days_on_market}</td>
-                      <td>{p.url && <a href={p.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Open advert"><I.external size={ICON_SIZE} /></a>}</td>
+                      <td>{p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open advert in a new tab" aria-label="Open advert in a new tab"><I.external size={ICON_SIZE} /></a>}</td>
                     </tr>
                     {open === p.id && <tr className="detail-row"><td colSpan={8}><Detail id={p.id} /></td></tr>}
                   </Fragment>

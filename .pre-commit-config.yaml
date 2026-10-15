@@ -1,0 +1,12 @@
+# Install once (PowerShell, from the repo root):  backend\.venv\Scripts\pre-commit.exe install
+# Runs the fast checks (ruff, mypy, unit tests, front-end types) before each commit. The full set, including the
+# Docker-based integration tests, runs in CI and with:  .\scripts\ci\check.ps1
+repos:
+  - repo: local
+    hooks:
+      - id: fast-checks
+        name: lint, types and unit tests
+        entry: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/check.ps1 -Fast
+        language: system
+        pass_filenames: false
+        always_run: true

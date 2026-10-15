@@ -118,7 +118,8 @@ def test_tfl_journey_parsing():
 
 def test_best_journey_picks_the_shortest_and_handles_no_route():
     slower = {**JOURNEY, "duration": 60}
-    assert best_journey({"journeys": [slower, JOURNEY]})["duration_min"] == 42
+    best = best_journey({"journeys": [slower, JOURNEY]})
+    assert best is not None and best["duration_min"] == 42
     assert best_journey({"journeys": []}) is None
 
 

@@ -59,8 +59,10 @@
 }
 .flexlayout__tab_button--selected { background: var(--accent); color: var(--on-accent); }
 .flexlayout__tab_button--selected .flexlayout__tab_button_content { color: var(--on-accent); }
+.flexlayout__tab_button { transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
 .flexlayout__tab_button:hover:not(.flexlayout__tab_button--selected) { background: var(--surface-hover); }
 .flexlayout__tab_toolbar_button { border-radius: var(--radius-1); }
+.flexlayout__splitter { transition: background-color var(--t-fast) var(--ease); }
 .flexlayout__splitter:hover { background: var(--accent-soft); }
 .flexlayout__tab_button_leading { display: inline-flex; align-items: center; margin-right: var(--space-1); color: var(--text-muted); }
 .flexlayout__tab_button--selected .flexlayout__tab_button_leading { color: var(--on-accent); }

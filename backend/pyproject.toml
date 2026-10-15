@@ -1,0 +1,94 @@
+[project]
+name = "lettings-backend"
+version = "0.1.0"
+description = "Lettings finder: Rightmove scraper, TfL commutes, Postgres, and a text-to-SQL assistant."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.143,<1",
+    "uvicorn[standard]>=0.54,<1",
+    "pydantic>=2.14,<3",
+    "pydantic-settings>=2.15,<3",
+    "sse-starlette>=3.5,<4",
+    "httpx>=0.28,<1",
+    "tenacity>=9.2,<10",
+    "selectolax>=1.0,<2",
+    "psycopg[binary,pool]>=3.3,<4",
+    "sqlalchemy>=2.1,<3",
+    "alembic>=1.20,<2",
+    "apscheduler>=3.11,<4",
+    "sqlglot>=30,<31",
+    "langgraph>=1.2,<2",
+    "langchain-core>=1.6,<2",
+    "langchain-anthropic>=1.7,<2",
+    "langchain-ollama>=1.1,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1,<10",
+    "pytest-asyncio>=1.4,<2",
+    "testcontainers[postgres]>=4.15,<5",
+    "ruff>=0.17,<1",
+    "mypy>=2.4,<3",
+    "pre-commit>=4,<5",
+]
+
+[tool.uv]
+package = false
+
+# ── lint and format ────────────────────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import order
+    "UP",       # modern syntax
+    "B",        # likely bugs
+    "SIM",      # simplifications
+    "C4",       # comprehensions
+    "ASYNC",    # blocking calls inside async code
+    "S",        # security (bandit)
+    "RUF",
+]
+ignore = [
+    "S101",     # assert is fine in tests and for internal invariants
+    "RUF012",   # mutable class attributes on pydantic models
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B011", "E501", "SIM300", "RUF021"]
+"app/agents/agent.py" = ["E501"]        # the system prompt is prose
+"app/repositories/*" = ["S608", "E501"]  # SQL built only from constant fragments; never from user input
+
+# ── types ──────────────────────────────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+files = ["app", "tests"]
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["docker.*", "apscheduler.*", "selectolax.*", "testcontainers.*", "sse_starlette.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# ── tests ──────────────────────────────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["integration: needs Docker (starts a throwaway Postgres/PostGIS container)"]
+addopts = "-ra"

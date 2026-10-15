@@ -1,78 +1,37 @@
-import json
-import logging
-import urllib.request
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import scheduler
-from app.api.lettings import router as lettings_router
-from app.api.routes import router
-from app.core.config import settings
-from app.db import pg
-from app.db.database import init_db
-
-log = logging.getLogger("app")
-db_state = {"ok": False, "error": "not started", "migrations": []}
+from app.api import database, health, jobs, properties, query, settings_routes
+from app.api.errors import register_error_handlers
+from app.core.config import Settings, get_settings
+from app.core.logging import setup_logging
+from app.runtime import Runtime, set_runtime
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    init_db()                                   # legacy DuckDB (uploaded datasets)
-    try:
-        pg.init_pools()
-        db_state["migrations"] = pg.migrate()
-        db_state.update(ok=True, error="")
-        if settings.scheduler_enabled:
-            await scheduler.start()
-    except Exception as e:                      # Postgres not running: the API still starts and says why
-        log.exception("Postgres unavailable")
-        db_state.update(ok=False, error=f"{type(e).__name__}: {e}")
-    yield
-    await scheduler.stop()
-    pg.close_pools()
+def create_app(settings: Settings | None = None, runtime: Runtime | None = None) -> FastAPI:
+    """Build the app. Tests pass their own settings or Runtime; production uses the environment."""
+    settings = settings or get_settings()
+    setup_logging(settings.log_level, settings.log_format)
+    rt = runtime or Runtime(settings)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        set_runtime(rt)
+        await rt.start()
+        yield
+        await rt.stop()
+        set_runtime(None)
+
+    app = FastAPI(title="Lettings API", lifespan=lifespan)
+    app.state.runtime = rt
+    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_methods=["*"], allow_headers=["*"])
+    register_error_handlers(app)
+    for module in (health, settings_routes, jobs, properties, query, database):
+        app.include_router(module.router)
+    return app
 
 
-app = FastAPI(title="Dashboard API", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.include_router(router)
-app.include_router(lettings_router)
-
-
-def _llm_status() -> tuple[bool, str]:
-    """(configured, reason). Never raises: a missing LLM must not take the API down."""
-    provider = settings.llm_provider.lower()
-    if provider == "anthropic":
-        return (True, "") if settings.anthropic_api_key else (False, "ANTHROPIC_API_KEY is not set")
-    if provider == "ollama":
-        try:
-            with urllib.request.urlopen(f"{settings.llm_base_url.rstrip('/')}/api/tags", timeout=2) as r:
-                names = {m.get("name") for m in json.load(r).get("models", [])}
-        except Exception as e:
-            return False, f"Ollama not reachable at {settings.llm_base_url} ({type(e).__name__})"
-        wanted = settings.llm_model
-        if wanted in names or (":" not in wanted and f"{wanted}:latest" in names):
-            return True, ""
-        return False, f"model '{wanted}' is not pulled (run: ollama pull {wanted})"
-    return False, f"unknown LLM_PROVIDER '{settings.llm_provider}'"
-
-
-@app.get("/health")
-def health():
-    configured, reason = _llm_status()
-    return {
-        "status": "ok",
-        "llm_configured": configured,
-        "llm_provider": settings.llm_provider,
-        "llm_model": settings.llm_model,
-        "llm_reason": reason,
-        "tfl_key_configured": bool(settings.tfl_app_key),
-        "database_ok": db_state["ok"],
-        "database_error": db_state["error"],
-    }
+app = create_app()

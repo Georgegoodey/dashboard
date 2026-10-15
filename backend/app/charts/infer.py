@@ -79,7 +79,7 @@ def column_role(name: str, type_str: str, values: list[Any]) -> str:
 
 def describe(columns: list[str], types: list[str], rows: list[list[Any]]) -> dict:
     cols = {c: [r[i] for r in rows] for i, c in enumerate(columns)}
-    roles = {c: column_role(c, t, cols[c]) for c, t in zip(columns, types)}
+    roles = {c: column_role(c, t, cols[c]) for c, t in zip(columns, types, strict=True)}
     formats = {c: guess_format(c, cols[c]) for c in columns if roles[c] == "measure"}
     return {"roles": roles, "formats": formats}
 
@@ -149,7 +149,7 @@ def infer(columns: list[str], types: list[str], rows: list[list[Any]]) -> dict:
             type="scatter", x=x, xKind="number", xFormat=formats[x],
             series=[{"field": y, "name": humanize(y), "axis": "left", "kind": "scatter", "format": formats[y]}],
             size=rest[0] if rest else None,
-            label=(labels or [None])[0],
+            label=labels[0] if labels else None,
             details=rest[1:],
         )
         return {**info, "spec": spec}

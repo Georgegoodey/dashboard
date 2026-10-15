@@ -1,8 +1,10 @@
 """The only place a chat model is constructed. Everything else calls get_llm()."""
-from app.core.config import settings
+from typing import Any
+
+from app.core.config import Settings
 
 
-def get_llm():
+def get_llm(settings: Settings) -> Any:
     provider = settings.llm_provider.lower()
     if provider == "ollama":
         from langchain_ollama import ChatOllama
@@ -17,6 +19,6 @@ def get_llm():
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
-        kwargs = {"api_key": settings.anthropic_api_key} if settings.anthropic_api_key else {}
+        kwargs: dict[str, Any] = {"api_key": settings.anthropic_api_key} if settings.anthropic_api_key else {}
         return ChatAnthropic(model=settings.llm_model, **kwargs)
     raise ValueError(f"Unknown LLM_PROVIDER '{settings.llm_provider}'. Use 'anthropic' or 'ollama'.")

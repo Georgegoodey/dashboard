@@ -50,6 +50,12 @@ export type PropertyFilters = {
   offset?: number;
 };
 
+export type MapPoint = {
+  id: number; lat: number; lon: number; address: string | null; url: string | null; rent_pcm: number | null;
+  bedrooms: number | null; borough: string | null; work_am_min: number | null; work_pm_min: number | null;
+  rent_vs_median_pct: number | null; days_on_market: number;
+};
+
 export type PropertyDetail = {
   property: Property;
   listings: {
@@ -100,6 +106,11 @@ export const lettings = {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "" && v !== null) p.set(k, String(v));
     return call<{ total: number; rows: Property[] }>(`/api/properties?${p}`);
+  },
+  mapPoints: (f: PropertyFilters) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "" && v !== null) p.set(k, String(v));
+    return call<{ total: number; points: MapPoint[] }>(`/api/properties/map?${p}`);
   },
   property: (id: number) => call<PropertyDetail>(`/api/properties/${id}`),
 

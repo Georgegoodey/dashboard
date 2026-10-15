@@ -4,6 +4,7 @@
   border: var(--border-w) solid var(--border); border-radius: var(--radius-1);
   padding: var(--space-2) var(--space-3); font: inherit; resize: none;
 }
+.input { transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
 .input.mono { font-family: var(--mono); font-size: 13px; resize: vertical; }
 .select { height: 32px; padding: 0 var(--space-2); cursor: pointer; }
@@ -11,12 +12,31 @@
 .field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .field-label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .check { display: flex; align-items: center; gap: var(--space-2); height: 32px; font-size: 13px; cursor: pointer; }
-.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+
+/* tick boxes: a visible border always; the inside fills with the accent colour and a tick when checked */
+input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0; position: relative;
+  width: 18px; height: 18px; margin: 0; cursor: pointer;
+  background: var(--surface); border: var(--border-w) solid var(--border-strong); border-radius: var(--radius-1);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+input[type="checkbox"]::after {
+  content: ""; position: absolute; inset: 1px; background: var(--on-accent, #fff);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 4.8' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 4.8' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: scale(0); transition: transform var(--t-fast) var(--ease);
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--accent); box-shadow: 2px 2px 0 var(--accent-soft-border); }
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--border-strong); }
+input[type="checkbox"]:checked::after { transform: scale(1); }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type="checkbox"]:disabled { opacity: .5; cursor: default; }
 
 .chip {
   height: 28px; padding: 0 var(--space-2); font: inherit; font-size: 13px; cursor: pointer;
   color: var(--text-muted); background: transparent;
   border: var(--border-w) solid var(--border); border-radius: var(--radius-1);
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 .chip:hover { border-color: var(--border-strong); color: var(--text); }
 .chip-on { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-soft-border); box-shadow: 2px 2px 0 var(--accent-soft-border); }

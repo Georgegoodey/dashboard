@@ -1,0 +1,185 @@
+"""Ingest SQL against a real database: inserts, matching, price history, withdrawal, filters, commutes."""
+from datetime import date
+from decimal import Decimal
+
+import pytest
+
+from app.db.database import Database
+from app.repositories import areas, commutes, jobs, listings, places, profiles, properties
+from app.services import filters
+from app.sources.base import RawListing, SearchFilters
+
+pytestmark = pytest.mark.integration
+
+
+def raw(listing_id: str, rent: str = "2000", beds: int = 2, postcode: str = "SW11 7FD", address: str = "1 Test Street, London",
+        lat: float = 51.47, lon: float = -0.16, **kw: object) -> RawListing:
+    return RawListing(source="rightmove", source_listing_id=listing_id, url=f"https://example.test/{listing_id}", address=address,
+                      postcode=postcode, outcode=postcode.split()[0], lat=lat, lon=lon, bedrooms=beds, bathrooms=1,
+                      property_type="Flat", rent_pcm=Decimal(rent), rent_pw=None, **kw)  # type: ignore[arg-type]
+
+
+def test_insert_new_creates_property_listing_and_first_price_row(db: Database) -> None:
+    listing_id, property_id = listings.insert_new(db, raw("100"))
+    assert listing_id and property_id
+    assert db.fetch_one("SELECT count(*) AS n FROM listing_price_history WHERE listing_id = %s", (listing_id,)) == {"n": 1}
+    row = db.fetch_one("SELECT outcode, bedrooms, ST_Y(geom::geometry) AS lat FROM properties WHERE id = %s", (property_id,))
+    assert row and row["outcode"] == "SW11" and row["bedrooms"] == 2 and round(row["lat"], 2) == 51.47
+
+
+def test_same_portal_adverts_at_one_address_are_never_merged(db: Database) -> None:
+    _, p1 = listings.insert_new(db, raw("1"))
+    _, p2 = listings.insert_new(db, raw("2"))             # same postcode, address and bedrooms
+    assert p1 != p2
+
+
+def test_another_portal_matches_the_existing_property(db: Database) -> None:
+    _, p1 = listings.insert_new(db, raw("1"))
+    other = raw("zz-9")
+    other.source = "openrent"
+    _, p2 = listings.insert_new(db, other)
+    assert p1 == p2
+
+
+def test_touch_known_records_a_price_change_and_revives(db: Database) -> None:
+    listing_id, _ = listings.insert_new(db, raw("1", rent="2000"))
+    db.execute("UPDATE listings SET status = 'withdrawn' WHERE id = %s", (listing_id,))
+    result = listings.touch_known(db, "rightmove", [raw("1", rent="1900")])
+    assert result == {"touched": 1, "repriced": 1, "revived": 1}
+    row = db.fetch_one("SELECT status, rent_pcm FROM listings WHERE id = %s", (listing_id,))
+    assert row == {"status": "active", "rent_pcm": Decimal("1900.00")}
+    assert db.fetch_one("SELECT count(*) AS n FROM listing_price_history WHERE listing_id = %s", (listing_id,)) == {"n": 2}
+    changes = db.fetch_all("SELECT prev_rent_pcm, new_rent_pcm, change_pct FROM v_price_changes")
+    assert len(changes) == 1 and changes[0]["change_pct"] == Decimal("-5.0")
+
+
+def test_known_listings_maps_by_source_id(db: Database) -> None:
+    listings.insert_new(db, raw("7"))
+    assert set(listings.known_listings(db, "rightmove", ["7", "8"])) == {"7"}
+    assert listings.known_listings(db, "rightmove", []) == {}
+
+
+def test_withdrawn_only_after_three_complete_scrapes_miss_it(db: Database) -> None:
+    listings.insert_new(db, raw("keep"))
+    gone_id, _ = listings.insert_new(db, raw("gone", address="2 Other Road"))
+    for i in range(listings.WITHDRAW_AFTER_MISSED_SCRAPES):
+        status = db.fetch_one("SELECT status FROM listings WHERE id = %s", (gone_id,))
+        assert status == {"status": "active"}, f"withdrawn too early (miss {i})"
+        withdrawn = listings.mark_missing(db, "rightmove", "SW11", {"keep"})
+    assert withdrawn == 1
+    assert db.fetch_one("SELECT status FROM listings WHERE id = %s", (gone_id,)) == {"status": "withdrawn"}
+    assert db.fetch_one("SELECT count(*) AS n FROM listing_price_history WHERE listing_id = %s AND status = 'withdrawn'", (gone_id,)) == {"n": 1}
+    assert listings.mark_missing(db, "rightmove", "SW11", {"keep"}) == 0           # not withdrawn twice
+    assert db.fetch_one("SELECT count(*) AS n FROM listings WHERE source_listing_id = 'keep' AND status = 'active'") == {"n": 1}
+
+
+def test_pending_details_and_save_detail_sharpen_the_property(db: Database) -> None:
+    lid, pid = listings.insert_new(db, raw("5", postcode="SW11 2AA", lat=51.0, lon=-0.1))
+    assert [r["id"] for r in listings.pending_details(db, "rightmove", 10)] == [lid]
+    assert listings.count_pending_details(db, "rightmove") == 1
+    detail = raw("5", postcode="SW11 7FD", lat=51.47, lon=-0.16, description="A bright flat with a private garden and balcony",
+                 furnished="Furnished", deposit=Decimal("2300"), has_detail=True)
+    detail.key_features = ["Garden", "Balcony"]
+    listings.save_detail(db, lid, detail)
+    assert listings.count_pending_details(db, "rightmove") == 0
+    row = db.fetch_one("SELECT postcode, ST_Y(geom::geometry) AS lat FROM properties WHERE id = %s", (pid,))
+    assert row and row["postcode"] == "SW11 7FD" and round(row["lat"], 2) == 51.47
+    assert db.fetch_one("SELECT furnished, deposit FROM listings WHERE id = %s", (lid,)) == {"furnished": "Furnished", "deposit": Decimal("2300.00")}
+
+
+def test_withdraw_marks_a_listing(db: Database) -> None:
+    lid, _ = listings.insert_new(db, raw("9"))
+    listings.withdraw(db, lid)
+    assert db.fetch_one("SELECT status FROM listings WHERE id = %s", (lid,)) == {"status": "withdrawn"}
+
+
+def test_filters_hide_and_restore_without_deleting(db: Database) -> None:
+    listings.insert_new(db, raw("a", rent="1500", beds=1, address="A"))
+    listings.insert_new(db, raw("b", rent="3000", beds=3, address="B"))
+    listings.insert_new(db, raw("c", rent="5000", beds=2, address="C"))      # over the rent limit
+    listings.insert_new(db, raw("d", rent="2000", beds=6, address="D"))      # too many bedrooms
+    tight = SearchFilters(min_bedrooms=1, max_bedrooms=4, max_rent=3500)
+    assert filters.update(db, tight) == {"hidden": 2, "restored": 0}
+    counts = {r["status"]: r["n"] for r in db.fetch_all("SELECT status, count(*) AS n FROM listings GROUP BY status")}
+    assert counts == {"active": 2, "filtered": 2}
+    assert filters.load(db) == tight
+    assert filters.update(db, SearchFilters(min_bedrooms=None, max_bedrooms=None, max_rent=None)) == {"hidden": 0, "restored": 2}
+
+
+def test_filters_reject_an_impossible_range(db: Database) -> None:
+    from app.core.errors import InvalidInput
+
+    with pytest.raises(InvalidInput):
+        filters.update(db, SearchFilters(min_bedrooms=3, max_bedrooms=1, max_rent=None))
+
+
+def test_properties_view_search_and_detail(db: Database) -> None:
+    listings.insert_new(db, raw("a", rent="1500", beds=1, address="A Road"))
+    listings.insert_new(db, raw("b", rent="2500", beds=2, address="B Road"))
+    res = properties.search(db, q=None, min_rent=None, max_rent=2000, min_beds=None, max_beds=None, borough=None, max_commute=None,
+                            furnished=None, sort="rent", order="asc", limit=10, offset=0)
+    assert res["total"] == 1 and res["rows"][0]["address"] == "A Road"
+    pid = res["rows"][0]["id"]
+    detail = properties.detail(db, pid)
+    assert detail and detail["property"]["id"] == pid and len(detail["listings"]) == 1 and len(detail["price_history"]) == 1
+    assert properties.detail(db, 999999) is None
+    assert properties.counts(db)["active_listings"] == 2
+
+
+def test_areas_crud(db: Database) -> None:
+    area_id = areas.upsert(db, "SW11", "Battersea", True)
+    assert areas.upsert(db, "SW11", "Battersea 2", False) == area_id                 # upsert on outcode
+    assert [a["label"] for a in areas.list_all(db)] == ["Battersea 2"]
+    assert areas.list_enabled(db) == []
+    assert areas.update(db, area_id, None, True) and areas.update(db, 99999, None, True) is False
+    areas.save_source_id(db, area_id, "rightmove", "OUTCODE^2497")
+    assert areas.list_enabled(db)[0]["source_ids"] == {"rightmove": "OUTCODE^2497"}
+    areas.delete(db, area_id)
+    assert areas.list_all(db) == []
+
+
+def test_places_and_profiles_invalidate_routes(db: Database) -> None:
+    places.save(db, "work", "Work", None, "EC2R 8AH", 51.5, -0.09)
+    _, pid = listings.insert_new(db, raw("1"))
+    profile = db.fetch_one("SELECT id FROM commute_profiles WHERE slug = 'work_am'")
+    assert profile
+    pair = {"property_id": pid, "profile_id": profile["id"]}
+    commutes.save_route(db, pair, date(2026, 10, 20), {"duration_min": 31, "walk_min": 5, "transfers": 1, "fare_pence": 280, "summary": "x"})
+    assert db.fetch_one("SELECT work_am_min FROM v_properties WHERE id = %s", (pid,)) == {"work_am_min": 31}
+    from datetime import time
+
+    assert profiles.update(db, "work_am", time(8, 30), 2, True)
+    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}      # times changed: recompute
+    assert profiles.update(db, "nope", time(8, 0), 1, True) is False
+    commutes.save_route(db, pair, date(2026, 10, 20), {"duration_min": 31})
+    places.save(db, "work", "Work", None, "E14 5AB", 51.5, -0.02)
+    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}      # place moved: routes are wrong
+
+
+def test_pending_commute_pairs_need_a_place_and_a_geometry(db: Database) -> None:
+    listings.insert_new(db, raw("1"))
+    assert commutes.pending_pairs(db, 10) == [] and commutes.count_pending(db) == 0         # no work place yet
+    places.save(db, "work", "Work", None, "EC2R 8AH", 51.5, -0.09)
+    pairs = commutes.pending_pairs(db, 10)
+    assert {p["slug"] for p in pairs} == {"work_am", "work_pm"} and commutes.count_pending(db) == 2
+    commutes.save_route(db, pairs[0], date(2026, 10, 20), None)                         # "no journey" is remembered too
+    assert commutes.count_pending(db) == 1
+    commutes.count_api_call(db)
+    commutes.count_api_call(db, n=2)
+    assert db.fetch_one("SELECT calls FROM api_usage WHERE provider = 'tfl'") == {"calls": 3}
+
+
+def test_job_run_bookkeeping(db: Database) -> None:
+    jobs.seed_settings(db, "j", 30, None, None)
+    jobs.update_settings(db, "j", False, 45, "07:00", "22:00")
+    jobs.seed_settings(db, "j", 30, None, None)                                          # never overwrites edits
+    cfg = jobs.get_settings(db, "j")
+    assert cfg["enabled"] is False and cfg["interval_minutes"] == 45
+    run = jobs.start_run(db, "j", "manual")
+    assert jobs.close_interrupted(db) == 1
+    last = jobs.last_run(db, "j")
+    assert last and last["status"] == "error" and "interrupted" in last["error"]
+    run2 = jobs.start_run(db, "j", "schedule")
+    jobs.finish_run(db, run2, "ok", 3, 1, {"x": 1}, None)
+    assert jobs.last_ok(db, "j") is not None and run2 > run
+    assert [r["id"] for r in jobs.recent_runs(db, 10)] == [run2, run]

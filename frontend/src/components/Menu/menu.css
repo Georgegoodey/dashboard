@@ -3,6 +3,7 @@
   display: inline-flex; align-items: center; gap: var(--space-2); height: 32px; padding: 0 var(--space-3);
   font: inherit; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text); background: transparent; border: var(--border-w) solid transparent; cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .menu-trigger:hover { background: var(--surface-hover); }
 .menu-trigger.open { background: var(--surface); border-color: var(--border-strong); }
@@ -10,14 +11,17 @@
 .menu-list {
   position: absolute; top: calc(100% + 4px); z-index: 100; min-width: 220px; padding: var(--space-1);
   background: var(--surface); border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow);
+  animation: menu-in var(--t-fast) var(--ease);
 }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
 .menu-start { left: 0; }
 .menu-end { right: 0; }
 .menu-item {
   display: flex; align-items: center; gap: var(--space-2); width: 100%; height: 32px; padding: 0 var(--space-3) 0 var(--space-1);
   font: inherit; text-align: left; color: var(--text); background: transparent; border: 0; cursor: pointer; white-space: nowrap;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), padding-left var(--t-fast) var(--ease);
 }
-.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
+.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; padding-left: calc(var(--space-1) + 3px); }
 .menu-item:disabled { opacity: .45; cursor: default; }
 .menu-lead { display: inline-flex; align-items: center; justify-content: center; width: 20px; flex-shrink: 0; }
 .menu-heading { padding: var(--space-2) var(--space-3) var(--space-1); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }

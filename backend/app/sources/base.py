@@ -2,10 +2,11 @@
 import asyncio
 import random
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, AsyncIterator, Protocol
+from typing import Any, Protocol
 
 import httpx
 
@@ -105,7 +106,7 @@ class Throttle:
             now = time.monotonic()
             if now < self._next:
                 await asyncio.sleep(self._next - now)
-            self._next = time.monotonic() + self.min_delay + random.uniform(0, self.jitter)
+            self._next = time.monotonic() + self.min_delay + random.uniform(0, self.jitter)  # noqa: S311  (request jitter, not security)
 
 
 def new_client(timeout: float = 30.0) -> httpx.AsyncClient:

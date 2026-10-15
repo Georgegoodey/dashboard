@@ -3,7 +3,7 @@
 import {
   ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, ArrowsIn, ArrowsOut, ArrowsOutSimple, Broom, CaretDown,
   CaretRight, ChartBar, Check, DotsThree, FloppyDisk, Info, Moon, PaperPlaneRight, Play, Plus, SlidersHorizontal, Sun,
-  Table, Trash, UploadSimple, Warning, Wrench, X,
+  Table, Trash, Warning, Wrench, X,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -21,7 +21,6 @@ export const I = {
   rerun: ArrowClockwise,
   reset: ArrowCounterClockwise,
   clear: Broom,
-  upload: UploadSimple,
   customize: SlidersHorizontal,
   chart: ChartBar,
   table: Table,

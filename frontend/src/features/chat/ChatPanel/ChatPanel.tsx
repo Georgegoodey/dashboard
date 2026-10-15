@@ -38,7 +38,7 @@ export default function ChatPanel() {
       <Scroll>
         {messages.length === 0 && (
           <Empty>
-            Ask about your datasets, e.g. “Does discounting hurt ratings?”
+            Ask about the lettings, e.g. “cheapest 2 beds under 40 minutes to work”
             <br />
             No API key yet? Click <b>Run sample</b> to see how answers and tool calls look.
           </Empty>

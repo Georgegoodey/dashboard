@@ -9,3 +9,8 @@ body {
 :focus-visible { outline: 2px dashed var(--accent); outline-offset: 2px; }
 * { scrollbar-width: auto; scrollbar-color: var(--border-strong) var(--surface); }
 .muted { color: var(--text-muted); }
+
+/* people who ask their system for less motion get instant changes */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

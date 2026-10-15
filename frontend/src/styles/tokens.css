@@ -125,6 +125,10 @@ html {
   --shadow: 3px 3px 0 var(--border-strong);
   --bar-h: 44px;
 
+  /* motion: short and decisive, to suit the terminal look */
+  --t-fast: 120ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
   --font: "Cascadia Mono", "Lucida Console", Consolas, "Courier New", monospace;
   --mono: var(--font);
 }

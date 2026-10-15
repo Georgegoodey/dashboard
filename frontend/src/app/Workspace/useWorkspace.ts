@@ -4,7 +4,7 @@ import { storage } from "@/lib";
 import { PanelKey } from "../panels";
 import { defaultLayout, tab } from "./defaultLayout";
 
-const STORAGE_KEY = "dashboard.layout.v7";
+const STORAGE_KEY = "dashboard.layout.v8";
 
 function loadModel(): Model {
   try {

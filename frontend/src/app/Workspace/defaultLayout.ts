@@ -8,7 +8,7 @@ export const defaultLayout: IJsonModel = {
   layout: {
     type: "row",
     // FlexLayout flips orientation per nesting level: root = horizontal, its child row = vertical (stacked),
-    // and that row's children are horizontal again. Chat is intentionally not open by default (Assistant menu).
+    // and that row's children are horizontal again. Chat is intentionally not open by default (Analysis menu).
     children: [
       {
         type: "row",
@@ -17,7 +17,7 @@ export const defaultLayout: IJsonModel = {
             type: "row",
             weight: 64,
             children: [
-              { type: "tabset", weight: 64, children: [tab("properties")] },
+              { type: "tabset", weight: 64, children: [tab("properties"), tab("map")] },
               { type: "tabset", weight: 36, children: [tab("settings"), tab("jobs")] },
             ],
           },
@@ -26,7 +26,7 @@ export const defaultLayout: IJsonModel = {
             weight: 36,
             children: [
               { type: "tabset", weight: 50, children: [tab("sql"), tab("vega")] },
-              { type: "tabset", weight: 50, children: [tab("trace"), tab("data")] },
+              { type: "tabset", weight: 50, children: [tab("trace"), tab("database")] },
             ],
           },
         ],
