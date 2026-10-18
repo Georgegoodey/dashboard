@@ -1,0 +1,2 @@
+# The CI deploy user may restart the API, and nothing else as root.
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart lettings-api.service

@@ -1,0 +1,47 @@
+# Caddy on the Pi. It listens on 127.0.0.1 only: `tailscale serve` puts HTTPS in front of it and makes it reachable from
+# your own devices (the tailnet) and nothing else. So there is no TLS and no login here; the network is the access control.
+{
+	auto_https off
+	admin off
+}
+
+# the same headers on every response, including error pages (Caddy builds those in a separate route)
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+}
+
+# ":8080" (no host) so it answers whatever Host header tailscale serve forwards (the machine's tailnet name)
+:8080 {
+	bind 127.0.0.1
+	import security_headers
+
+	# the API, including the chat stream: Caddy flushes text/event-stream straight away, and `encode` is
+	# deliberately not applied here so the stream is never compressed or buffered
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /health {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# the built frontend; `current` is a symlink that the deploy script switches atomically
+	handle {
+		root * /opt/lettings/current/web
+		encode zstd gzip
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@page not path /assets/*
+		header @page Cache-Control "no-cache"
+		file_server
+	}
+
+	handle_errors {
+		import security_headers
+		respond "{err.status_code} {err.status_text}"
+	}
+}

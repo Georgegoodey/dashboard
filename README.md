@@ -146,6 +146,12 @@ restart the backend.
 | `llama3.1:8b` | Reliable tool calling, plainer SQL |
 | `qwen3:14b` | Only with about 4k context (`LLM_NUM_CTX=4096`); it barely fits 10 GB |
 
+## Running on a Raspberry Pi
+
+The app can run on a Raspberry Pi, reachable only from your own devices over Tailscale, with the chat model still on your PC
+and every merge to `main` deployed automatically after CI passes. The set-up, security model and runbook are in
+[deploy/README.md](deploy/README.md).
+
 ## Project layout
 
 ```
@@ -175,8 +181,9 @@ frontend/src/
   features/        lettings, charts, chat, sql, trace, database (Postgres manager)
   hooks/, lib/, styles/
 docker-compose.yml   Postgres + PostGIS
-scripts/ci/          check.sh and check.ps1: the checks CI runs
-.github/workflows/   CI
+scripts/ci/          check.sh and check.ps1 (the checks CI runs), package-release.sh (the tarball the Pi installs)
+deploy/              Raspberry Pi set-up: Caddyfile, systemd unit, bootstrap and deploy scripts
+.github/workflows/   CI, and the deploy job
 ```
 
 ### API
