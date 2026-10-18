@@ -25,7 +25,13 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None)
         await rt.stop()
         set_runtime(None)
 
-    app = FastAPI(title="Lettings API", lifespan=lifespan)
+    # In production the interactive docs and the schema are off: nothing needs them there, and they list every endpoint.
+    production = settings.environment == "production"
+    app = FastAPI(
+        title="Lettings API", lifespan=lifespan,
+        docs_url=None if production else "/docs", redoc_url=None if production else "/redoc",
+        openapi_url=None if production else "/openapi.json",
+    )
     app.state.runtime = rt
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_methods=["*"], allow_headers=["*"])
     register_error_handlers(app)
