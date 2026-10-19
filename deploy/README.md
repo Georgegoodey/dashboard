@@ -30,20 +30,47 @@ localhost; only `tailscale serve` (and SSH, see below) are reachable, and only f
 
 ## One-time set-up
 
-1. **Flash the Pi** with 64-bit Raspberry Pi OS Lite (current release is Debian trixie; bookworm works too), enable SSH, boot it.
-   Prefer an SSD over an SD card for the database.
-2. **Make a deploy key** on your PC (a key used only by CI):
-   `ssh-keygen -t ed25519 -f lettings-ci-deploy -N "" -C "lettings-ci"`
-3. **Bootstrap the Pi.** Copy the `deploy/` folder and the public key to it, then:
-   `sudo bash deploy/pi/bootstrap.sh lettings-ci-deploy.pub`
+1. **Flash the Pi** with 64-bit Raspberry Pi OS Lite, enable SSH, boot it. **Use the current release (Debian trixie,
+   PostgreSQL 17).** On bookworm (PostgreSQL 15) the app's database role is more powerful than it should be, because the
+   PostgreSQL 15 manual treats a role that can create roles as "almost-superuser"; bootstrap warns if it sees that. Prefer an SSD
+   over an SD card for the database.
+2. **Make a deploy key** on your PC (a key used only by CI). Keep it in `~/.ssh`, **not** in the repo, so it cannot be committed.
+   - Git Bash: `ssh-keygen -t ed25519 -f ~/.ssh/lettings-ci-deploy -N "" -C "lettings-ci"`
+   - Windows PowerShell 5.1: `ssh-keygen -t ed25519 -f "$HOME\.ssh\lettings-ci-deploy" -N '""' -C "lettings-ci"`
+     (PowerShell 5.1 drops an empty `""` argument, which gives "Too many arguments"; `'""'` passes it through.)
+   - Any shell: leave out `-N ...` and press Enter at both passphrase prompts.
+
+   The options: `-t ed25519` is the key type, `-f` the file name (the public half gets `.pub` added), `-N` the passphrase (empty,
+   because CI cannot type one) and `-C` a label stored in the public key. You get two files: `lettings-ci-deploy` (**private**,
+   goes only into the GitHub secret in step 7) and `lettings-ci-deploy.pub` (public, goes to the Pi).
+3. **Bootstrap the Pi.** Copy the `deploy/` folder and the **public** key to it (never the private key). From the repository
+   root on your PC, using the user name you set when flashing:
+   ```
+   scp -r deploy "$HOME/.ssh/lettings-ci-deploy.pub" youruser@raspberrypi.local:~/
+   ```
+   (Git Bash and PowerShell both have `scp`; in PowerShell `"$HOME\.ssh\lettings-ci-deploy.pub"` works too.) Or install Git on
+   the Pi and clone the repository there, which needs the branch pushed or merged. On the Pi, check the scripts have Unix line
+   endings (this must print 0), then run the bootstrap:
+   ```
+   grep -c $'\r' deploy/pi/bootstrap.sh
+   sudo bash deploy/pi/bootstrap.sh ~/lettings-ci-deploy.pub
+   ```
+   To make the key work only from your tailnet (recommended; 100.64.0.0/10 is Tailscale's address range), prefix the second
+   command with `DEPLOY_KEY_FROM="100.64.0.0/10"` after `sudo`, e.g. `sudo DEPLOY_KEY_FROM="100.64.0.0/10" bash deploy/pi/bootstrap.sh ...`.
+
    It installs PostgreSQL and PostGIS from Debian (the official `postgis/postgis` Docker images have no arm64 build), Caddy, and
    `uv`; creates the `lettings` (service) and `deploy` (CI) users; creates the database with a non-superuser app role; and
    installs the service, the Caddyfile and the deploy receiver. It prints what is left to do.
 4. **Edit `/etc/lettings/lettings.env`** on the Pi: set `LLM_BASE_URL` to your PC (below). The database passwords are already
    generated.
-5. **Join Tailscale on the Pi**, then publish Caddy to your tailnet over HTTPS:
+5. **Join Tailscale on the Pi**, then publish Caddy to your tailnet over HTTPS. The package repository is the more inspectable way
+   to install (Tailscale also offers a one-line `curl ... | sh` script; read it first if you use it). For Raspberry Pi OS trixie
+   (use `bookworm` in the three URLs on bookworm):
    ```
-   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo mkdir -p --mode=0755 /usr/share/keyrings
+   curl -fsSL https://pkgs.tailscale.com/stable/raspbian/trixie.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
+   curl -fsSL https://pkgs.tailscale.com/stable/raspbian/trixie.tailscale-keyring.list | sudo tee /etc/apt/sources.list.d/tailscale.list
+   sudo apt-get update && sudo apt-get install tailscale
    sudo tailscale up
    sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
    ```
@@ -104,6 +131,10 @@ Tested on the development PC:
   run through `sudo` (24 checks);
 - the database step of `bootstrap.sh` (the `psql` block), run twice on a throwaway PostGIS server: it creates the non-superuser
   role, the database and the extensions, and is safe to repeat;
+- the deploy key set-up: the `ssh-keygen` commands above in Git Bash and Windows PowerShell 5.1 (the empty-passphrase error is
+  reproduced and the `'""'` fix confirmed), and the optional `from=` restriction builds the expected `authorized_keys` line and
+  rejects pattern text that could smuggle in a different command;
+- that `deploy-receive.sh` installs the locked dependencies as ready-made wheels only (`uv sync --no-build`);
 - that every locked Python dependency has an aarch64 wheel for Python 3.11 and 3.13, that the release tarball contains what the
   receiver requires, that the workflow file parses, and the shell scripts' syntax.
 

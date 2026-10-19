@@ -67,8 +67,9 @@ for f in backend/pyproject.toml backend/uv.lock backend/alembic.ini web/index.ht
   [[ -f "$release/$f" ]] || { echo "refusing: the release is missing $f" >&2; exit 2; }
 done
 
+# --no-build: install ready-made wheels only. Building a source package would run that package's build code on the Pi.
 echo "building the Python environment from uv.lock"
-(cd "$release/backend" && UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy uv sync --frozen --no-dev)
+(cd "$release/backend" && UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy uv sync --frozen --no-dev --no-build)
 
 switch_to "$release"
 installed=true

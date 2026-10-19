@@ -31,3 +31,9 @@ Thumbs.db
 
 # local data
 /data/
+
+# SSH private keys: the CI deploy key lives in ~/.ssh and is only ever a GitHub secret, never a file in the repo
+lettings-ci-deploy
+id_ed25519
+id_rsa
+*.pem

@@ -3,6 +3,7 @@
 # Safe to run again: it never overwrites an existing /etc/lettings/lettings.env or database role.
 #
 #   sudo bash deploy/pi/bootstrap.sh /path/to/ci-deploy-key.pub
+#   sudo DEPLOY_KEY_FROM="100.64.0.0/10" bash deploy/pi/bootstrap.sh /path/to/ci-deploy-key.pub   # optional: the key then only works from the tailnet
 #
 # What it sets up, and why each part is locked down, is explained in deploy/README.md.
 set -euo pipefail
@@ -14,6 +15,12 @@ if [[ -z "$pubkey_file" || ! -r "$pubkey_file" ]]; then
   exit 1
 fi
 pubkey="$(head -n 1 "$pubkey_file")"
+# optional OpenSSH "from=" pattern list: the key is then refused from any other address (100.64.0.0/10 is the tailnet range)
+from_pattern="${DEPLOY_KEY_FROM:-}"
+if [[ -n "$from_pattern" && ! "$from_pattern" =~ ^[0-9A-Fa-f:./*?,!-]+$ ]]; then
+  echo "DEPLOY_KEY_FROM may only contain addresses, CIDR ranges and the characters , ! * ? (see sshd(8), from=)" >&2
+  exit 1
+fi
 [[ "$pubkey" =~ ^(ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa)\  ]] || { echo "that does not look like an SSH public key" >&2; exit 1; }
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,6 +32,10 @@ echo "== packages: PostgreSQL, PostGIS, Python tooling =="
 apt-get update
 apt-get install -y --no-install-recommends postgresql ca-certificates curl gnupg openssl sudo python3 python3-venv
 pgver="$(ls /usr/lib/postgresql | sort -n | tail -n 1)"
+if (( pgver < 16 )); then
+  echo "WARNING: PostgreSQL ${pgver} is older than 16. The app role has CREATEROLE, which the PostgreSQL ${pgver} manual calls almost-superuser," >&2
+  echo "         and 16 and later limit it to roles the app created itself. Raspberry Pi OS trixie (PostgreSQL 17) is the safer choice." >&2
+fi
 apt-get install -y --no-install-recommends "postgresql-${pgver}-postgis-3"
 
 echo "== Caddy (official apt repository) =="
@@ -101,7 +112,9 @@ visudo -cf /etc/sudoers.d/lettings-deploy
 install -m 0755 -o root -g root "$here/deploy-receive.sh" /opt/lettings/bin/deploy-receive
 
 install -d -m 0700 -o deploy -g deploy /home/deploy/.ssh
-printf 'restrict,command="/opt/lettings/bin/deploy-receive" %s\n' "$pubkey" >/home/deploy/.ssh/authorized_keys
+options='restrict,command="/opt/lettings/bin/deploy-receive"'
+[[ -n "$from_pattern" ]] && options="from=\"${from_pattern}\",${options}"
+printf '%s %s\n' "$options" "$pubkey" >/home/deploy/.ssh/authorized_keys
 chown deploy:deploy /home/deploy/.ssh/authorized_keys
 chmod 0600 /home/deploy/.ssh/authorized_keys
 
