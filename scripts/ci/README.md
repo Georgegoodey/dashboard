@@ -1,5 +1,14 @@
-# CI/CD scripts
+# CI scripts
 
-Scripts run by pipelines (build, lint, test, deploy). This folder is tracked in git.
+Run by the CI pipeline and usable locally.
 
-Scripts for working on the project locally live in `scripts/dev/`, which is git-ignored.
+```bash
+bash scripts/ci/check.sh            # lint, types, tests, frontend build (add --fast to skip Docker and the build)
+bash scripts/ci/package-release.sh  # release tarball for the Pi; run after `npm run build` in frontend/
+```
+
+```powershell
+.\scripts\ci\check.ps1              # same checks in Windows PowerShell (add -Fast to skip Docker and the build)
+```
+
+The pipeline is `.github/workflows/ci.yml`: checks on every push and pull request, then a deploy to the Raspberry Pi on pushes to `main`. See `deploy/README.md`.
