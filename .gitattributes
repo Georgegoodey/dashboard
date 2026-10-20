@@ -1,0 +1,5 @@
+# Files that run on Linux (the Raspberry Pi, CI) keep Unix line endings even when checked out on Windows,
+# where Git would otherwise convert them to CRLF and break shell scripts.
+*.sh text eol=lf
+deploy/** text eol=lf
+.github/workflows/*.yml text eol=lf

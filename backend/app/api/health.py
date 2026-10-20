@@ -22,7 +22,9 @@ def llm_status(settings: Settings) -> tuple[bool, str]:
             with urllib.request.urlopen(url, timeout=2) as r:  # noqa: S310  (operator-configured http URL)
                 names = {m.get("name") for m in json.load(r).get("models", [])}
         except Exception as e:
-            return False, f"Ollama not reachable at {settings.llm_base_url} ({type(e).__name__})"
+            # the address is only useful to the developer; in production /health is public to everyone on the network
+            where = "" if settings.environment == "production" else f" at {settings.llm_base_url}"
+            return False, f"Ollama not reachable{where} ({type(e).__name__})"
         wanted = settings.llm_model
         if wanted in names or (":" not in wanted and f"{wanted}:latest" in names):
             return True, ""
