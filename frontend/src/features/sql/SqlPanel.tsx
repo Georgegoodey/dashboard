@@ -7,7 +7,7 @@ type View = "table" | "chart";
 
 /** SQL console on the same pipeline as the chart gallery: one query, viewable as a table or an editable chart. */
 export default function SqlPanel() {
-  const [sql, setSql] = useState("SELECT id, address, rent_pcm, bedrooms, borough, work_am_min FROM v_properties ORDER BY rent_pcm LIMIT 20");
+  const [sql, setSql] = useState("SELECT p.id, p.address, p.rent_pcm, c.point_label, c.duration_min FROM v_properties p LEFT JOIN v_commutes c ON c.property_id = p.id ORDER BY p.rent_pcm LIMIT 20");
   const [view, setView] = useState<View>("table");
   const run = useMutation({ mutationFn: chartApi.chart });
   const result = run.data;

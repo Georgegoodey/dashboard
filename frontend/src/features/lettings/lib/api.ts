@@ -22,18 +22,19 @@ export type Property = {
   days_on_market: number;
   price_changes: number;
   rent_vs_median_pct: number | null;
-  work_am_min: number | null;
-  work_am_transfers: number | null;
-  work_am_walk_min: number | null;
-  work_pm_min: number | null;
-  work_pm_transfers: number | null;
-  work_fare_pence: number | null;
-  home_min: number | null;
-  distance_to_home_km: number | null;
-  distance_to_work_km: number | null;
   lat: number | null;
   lon: number | null;
+  commutes: RouteSummary[];
 };
+
+/** One computed journey from a property to a commute point. A point has one or more (e.g. morning and evening). */
+export type RouteSummary = {
+  point_id: number; profile_id: number; direction: Direction; anchor: Anchor; local_time: string;
+  duration_min: number | null; walk_min: number | null; transfers: number | null; fare_pence: number | null;
+  distance_km: number | null;
+};
+export type Direction = "to_place" | "from_place";
+export type Anchor = "arrive_by" | "depart_at";
 
 export type PropertyFilters = {
   q?: string;
@@ -41,7 +42,8 @@ export type PropertyFilters = {
   max_rent?: number;
   min_beds?: number;
   max_beds?: number;
-  max_commute?: number;
+  /** "POINT_ID:MINUTES" or "all:MINUTES", one per limit; every limit must hold. */
+  commute?: string[];
   borough?: string;
   furnished?: string;
   sort?: string;
@@ -52,8 +54,8 @@ export type PropertyFilters = {
 
 export type MapPoint = {
   id: number; lat: number; lon: number; address: string | null; url: string | null; rent_pcm: number | null;
-  bedrooms: number | null; borough: string | null; work_am_min: number | null; work_pm_min: number | null;
-  rent_vs_median_pct: number | null; days_on_market: number;
+  bedrooms: number | null; borough: string | null; rent_vs_median_pct: number | null; days_on_market: number;
+  commutes: RouteSummary[];
 };
 
 export type PropertyDetail = {
@@ -64,21 +66,21 @@ export type PropertyDetail = {
     headline: string | null; description: string | null; key_features: string[] | null; first_seen: string; last_seen: string;
   }[];
   price_history: { observed_at: string; rent_pcm: number | null; status: string | null }[];
-  commutes: {
-    slug: string; label: string; ref_date: string; duration_min: number | null; walk_min: number | null;
-    transfers: number | null; fare_pence: number | null; summary: string | null;
-  }[];
+  commutes: (Omit<RouteSummary, "profile_id"> & { profile_id: number; point_label: string; journey: string; summary: string | null })[];
 };
 
 export type Status = {
-  active_listings: number; properties: number; detail_pending: number; areas: number; places: number; commute_pending: number;
+  active_listings: number; properties: number; detail_pending: number; areas: number; commute_points: number; commute_pending: number;
 };
 export type Area = { id: number; label: string; outcode: string; enabled: boolean; properties: number };
 export type SearchFilters = { min_bedrooms: number | null; max_bedrooms: number | null; max_rent: number | null };
-export type Place = { kind: "home" | "work"; label: string; address: string | null; postcode: string; lat: number; lon: number };
-export type Profile = {
-  slug: string; label: string; place_kind: "home" | "work"; direction: string; anchor: string;
-  local_time: string; weekday: number; enabled: boolean;
+export type Journey = {
+  id: number; point_id: number; direction: Direction; anchor: Anchor; local_time: string; weekday: number; enabled: boolean;
+};
+export type JourneyIn = Omit<Journey, "id" | "point_id">;
+export type CommutePoint = {
+  id: number; label: string; address: string | null; postcode: string; lat: number; lon: number; enabled: boolean;
+  position: number; journeys: Journey[];
 };
 export type JobRun = {
   started_at: string; finished_at: string | null; status: string; trigger: string | null;
@@ -98,20 +100,22 @@ export type Health = {
   llm_model: string; llm_reason: string; tfl_key_configured: boolean;
 };
 
+/** Query string for the properties endpoints; list values (the commute limits) repeat the parameter. */
+function query(f: PropertyFilters): URLSearchParams {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (Array.isArray(v)) v.forEach((x) => p.append(k, x));
+    else if (v !== undefined && v !== "" && v !== null) p.set(k, String(v));
+  }
+  return p;
+}
+
 export const lettings = {
   health: () => call<Health>("/health"),
   status: () => call<Status>("/api/status"),
 
-  properties: (f: PropertyFilters) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "" && v !== null) p.set(k, String(v));
-    return call<{ total: number; rows: Property[] }>(`/api/properties?${p}`);
-  },
-  mapPoints: (f: PropertyFilters) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "" && v !== null) p.set(k, String(v));
-    return call<{ total: number; points: MapPoint[] }>(`/api/properties/map?${p}`);
-  },
+  properties: (f: PropertyFilters) => call<{ total: number; rows: Property[] }>(`/api/properties?${query(f)}`),
+  mapPoints: (f: PropertyFilters) => call<{ total: number; points: MapPoint[] }>(`/api/properties/map?${query(f)}`),
   property: (id: number) => call<PropertyDetail>(`/api/properties/${id}`),
 
   areas: () => call<Area[]>("/api/areas"),
@@ -123,14 +127,15 @@ export const lettings = {
   setFilters: (f: SearchFilters) =>
     call<SearchFilters & { hidden: number; restored: number }>("/api/filters", send("PUT", f)),
 
-  places: () => call<Place[]>("/api/places"),
-  setPlace: (kind: "home" | "work", postcode: string, label?: string) =>
-    call<{ postcode: string; borough: string | null }>(`/api/places/${kind}`, send("PUT", { postcode, label })),
-  deletePlace: (kind: "home" | "work") => call(`/api/places/${kind}`, send("DELETE")),
-
-  profiles: () => call<Profile[]>("/api/profiles"),
-  setProfile: (slug: string, local_time: string, weekday: number, enabled: boolean) =>
-    call(`/api/profiles/${slug}`, send("PUT", { local_time, weekday, enabled })),
+  commutePoints: () => call<CommutePoint[]>("/api/commute-points"),
+  addCommutePoint: (p: { postcode: string; label?: string; am_pm: boolean; local_time: string; weekday: number }) =>
+    call<{ id: number; postcode: string; borough: string | null }>("/api/commute-points", send("POST", p)),
+  setCommutePoint: (id: number, p: { label: string; postcode?: string; enabled: boolean }) =>
+    call(`/api/commute-points/${id}`, send("PUT", p)),
+  deleteCommutePoint: (id: number) => call(`/api/commute-points/${id}`, send("DELETE")),
+  addJourney: (pointId: number, j: JourneyIn) => call(`/api/commute-points/${pointId}/journeys`, send("POST", j)),
+  setJourney: (id: number, j: JourneyIn) => call(`/api/journeys/${id}`, send("PUT", j)),
+  deleteJourney: (id: number) => call(`/api/journeys/${id}`, send("DELETE")),
 
   jobs: () => call<Job[]>("/api/jobs"),
   setJob: (id: string, j: { enabled: boolean; interval_minutes: number; active_from: string | null; active_to: string | null }) =>

@@ -1,0 +1,17 @@
+.commute-filter { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.commute-filter .field-label { margin: 0; }
+.commute-rule { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0 0 0 var(--space-2); border: var(--border-w) solid var(--border); background: var(--surface-raised); }
+.commute-rule .select { min-width: 120px; }
+.commute-max { width: 64px; }
+
+/* settings: one card per commute point */
+.point { border: var(--border-w) solid var(--border); background: var(--surface-raised); margin-bottom: var(--space-3); }
+.point.off { opacity: .6; }
+.point-head { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: flex-end; padding: var(--space-3); }
+.point-head > .field { flex: 1 1 160px; }
+.point-journeys { border-top: var(--rule-w) solid var(--border); padding: var(--space-3); }
+.journey-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+.journey-row > .field { flex: 1 1 110px; }
+.point-new { border: var(--border-w) dashed var(--border); padding: var(--space-3); }
+.commute-by-point { margin-bottom: var(--space-2); }
+.journey-text { flex-basis: 100%; }

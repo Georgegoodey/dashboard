@@ -70,4 +70,4 @@ def test_comments_do_not_smuggle_a_second_statement() -> None:
 
 
 def test_relations_are_the_four_views() -> None:
-    assert sqlguard.ALLOWED_RELATIONS == {"v_properties", "v_price_changes", "v_property_text", "v_job_runs"}
+    assert sqlguard.ALLOWED_RELATIONS == {"v_properties", "v_commutes", "v_commute_points", "v_price_changes", "v_property_text", "v_job_runs"}

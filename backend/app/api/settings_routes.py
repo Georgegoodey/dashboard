@@ -1,6 +1,6 @@
-"""Settings you enter in the UI: search areas, home and work, commute times, search filters."""
+"""Settings you enter in the UI: search areas, commute points and their journeys, search filters."""
 from datetime import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import Rt
 from app.core.errors import InvalidInput, NotFound
 from app.pipeline.normalise import OUTCODE_RE
-from app.repositories import areas, places, profiles
+from app.repositories import areas, commute_points
 from app.services import filters, postcodes
 from app.sources.base import SearchFilters
 
@@ -55,60 +55,103 @@ def delete_area(area_id: int, rt: Rt) -> Any:
     return {"ok": True, **filters.refresh(rt.db)}
 
 
-# ── home and work ─────────────────────────────────────────────────────────────────────────────────────────────
+# ── commute points and their journeys ─────────────────────────────────────────────────────────────────────────
 
-class PlaceIn(BaseModel):
-    postcode: str
-    label: str | None = None
-    address: str | None = None
+Direction = Literal["to_place", "from_place"]
+Anchor = Literal["arrive_by", "depart_at"]
 
 
-def _kind(kind: str) -> str:
-    if kind not in ("home", "work"):
-        raise NotFound("Place kind must be 'home' or 'work'")
-    return kind
-
-
-@router.get("/places")
-def list_places(rt: Rt) -> Any:
-    return places.list_all(rt.db)
-
-
-@router.put("/places/{kind}")
-async def set_place(kind: str, body: PlaceIn, rt: Rt) -> Any:
-    return await postcodes.set_place(rt.db, _kind(kind), body.postcode, body.label, body.address)
-
-
-@router.delete("/places/{kind}")
-def delete_place(kind: str, rt: Rt) -> Any:
-    places.delete(rt.db, kind)
-    return {"ok": True}
-
-
-# ── commute profiles ──────────────────────────────────────────────────────────────────────────────────────────
-
-class ProfileIn(BaseModel):
-    local_time: str = Field(pattern=r"^\d{2}:\d{2}$")
-    weekday: int = Field(ge=0, le=6)
+class JourneyIn(BaseModel):
+    direction: Direction = "to_place"
+    anchor: Anchor = "arrive_by"
+    local_time: str = Field(default="09:00", pattern=r"^\d{2}:\d{2}$")
+    weekday: int = Field(default=1, ge=0, le=6)
     enabled: bool = True
 
 
-@router.get("/profiles")
-def list_profiles(rt: Rt) -> Any:
-    rows = profiles.list_all(rt.db)
-    for r in rows:
-        r["local_time"] = r["local_time"].strftime("%H:%M")
-    return rows
+class PointIn(BaseModel):
+    postcode: str
+    label: str | None = None
+    address: str | None = None
+    am_pm: bool = False              # add the way back as well (leave at 18:00)
+    local_time: str = Field(default="09:00", pattern=r"^\d{2}:\d{2}$")
+    weekday: int = Field(default=1, ge=0, le=6)
 
 
-@router.put("/profiles/{slug}")
-def update_profile(slug: str, body: ProfileIn, rt: Rt) -> Any:
+class PointUpdate(BaseModel):
+    label: str
+    address: str | None = None
+    postcode: str | None = None      # only sent when it changes
+    enabled: bool = True
+
+
+def _time(text: str) -> time:
     try:
-        t = time.fromisoformat(body.local_time)
+        return time.fromisoformat(text)
     except ValueError:
         raise InvalidInput("Time must be HH:MM") from None
-    if not profiles.update(rt.db, slug, t, body.weekday, body.enabled):
-        raise NotFound("Unknown profile")
+
+
+def _journeys(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{**r, "local_time": r["local_time"].strftime("%H:%M")} for r in rows]
+
+
+@router.get("/commute-points")
+def list_commute_points(rt: Rt) -> Any:
+    return [{**p, "journeys": _journeys(p["journeys"])} for p in commute_points.list_all(rt.db)]
+
+
+@router.post("/commute-points")
+async def add_commute_point(body: PointIn, rt: Rt) -> Any:
+    start = _time(body.local_time)
+    found = await postcodes.locate(body.postcode)
+    journeys = [{**commute_points.TO_POINT, "local_time": start, "weekday": body.weekday}]
+    if body.am_pm:
+        journeys.append({**commute_points.FROM_POINT, "weekday": body.weekday})
+    point_id = commute_points.add(rt.db, (body.label or "").strip() or found["postcode"], body.address, found["postcode"],
+                                  found["lat"], found["lon"], journeys)
+    return {"id": point_id, "postcode": found["postcode"], "borough": found["borough"]}
+
+
+@router.put("/commute-points/{point_id}")
+async def update_commute_point(point_id: int, body: PointUpdate, rt: Rt) -> Any:
+    label = body.label.strip()
+    if not label:
+        raise InvalidInput("A commute point needs a name")
+    place = None
+    if body.postcode:
+        found = await postcodes.locate(body.postcode)
+        place = (found["postcode"], found["lat"], found["lon"])
+    if not commute_points.update(rt.db, point_id, label, body.address, body.enabled, place):
+        raise NotFound("Unknown commute point")
+    return {"ok": True}
+
+
+@router.delete("/commute-points/{point_id}")
+def delete_commute_point(point_id: int, rt: Rt) -> Any:
+    commute_points.delete(rt.db, point_id)
+    return {"ok": True}
+
+
+@router.post("/commute-points/{point_id}/journeys")
+def add_journey(point_id: int, body: JourneyIn, rt: Rt) -> Any:
+    journey_id = commute_points.add_journey(rt.db, point_id, body.direction, body.anchor, _time(body.local_time), body.weekday)
+    if journey_id is None:
+        raise NotFound("Unknown commute point")
+    return {"id": journey_id}
+
+
+@router.put("/journeys/{journey_id}")
+def update_journey(journey_id: int, body: JourneyIn, rt: Rt) -> Any:
+    if not commute_points.update_journey(rt.db, journey_id, body.direction, body.anchor, _time(body.local_time),
+                                         body.weekday, body.enabled):
+        raise NotFound("Unknown journey")
+    return {"ok": True}
+
+
+@router.delete("/journeys/{journey_id}")
+def delete_journey(journey_id: int, rt: Rt) -> Any:
+    commute_points.delete_journey(rt.db, journey_id)
     return {"ok": True}
 
 

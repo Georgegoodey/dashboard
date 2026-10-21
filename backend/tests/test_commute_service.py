@@ -7,7 +7,7 @@ import pytest
 
 from app.commute.tfl import Throttled
 from app.db.database import Database
-from app.repositories import commutes, listings, places
+from app.repositories import commute_points, commutes, listings
 from app.services import commute as service
 from tests.test_repositories import raw
 
@@ -44,7 +44,7 @@ class FakeTfl:
 def seeded(db: Database, monkeypatch: pytest.MonkeyPatch) -> Database:
     monkeypatch.setattr(service, "TflClient", FakeTfl)
     FakeTfl.throttle_after = None
-    places.save(db, "work", "Work", None, "EC2R 8AH", 51.5, -0.09)
+    commute_points.add(db, "Work", None, "EC2R 8AH", 51.5, -0.09, [commute_points.TO_POINT, commute_points.FROM_POINT])
     for i in range(10):
         listings.insert_new(db, raw(str(i), address=f"{i} Road"))          # 10 properties x 2 work profiles
     return db

@@ -11,7 +11,7 @@ FAILED_TTL_DAYS = 1       # a pair TfL could not route is retried tomorrow, not 
 _PENDING = """
         FROM properties p
         CROSS JOIN commute_profiles cp
-        JOIN places pl ON pl.kind = cp.place_kind AND pl.geom IS NOT NULL
+        JOIN commute_points pl ON pl.id = cp.point_id AND pl.enabled AND pl.geom IS NOT NULL
         WHERE cp.enabled AND p.geom IS NOT NULL
           AND EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id AND l.status = 'active')
           AND NOT EXISTS (SELECT 1 FROM commute_routes r
@@ -20,10 +20,10 @@ _PENDING = """
 
 
 def pending_pairs(db: Database, limit: int) -> list[Row]:
-    """Active properties x enabled profiles (whose place has a location) with no fresh route yet, newest first."""
+    """Active properties x enabled journeys (of active points with a location) with no fresh route yet, newest first."""
     return db.fetch_all(
         "SELECT p.id AS property_id, ST_Y(p.geom::geometry) AS lat, ST_X(p.geom::geometry) AS lon, "
-        "cp.id AS profile_id, cp.slug, cp.direction, cp.anchor, cp.local_time, cp.weekday, "
+        "cp.id AS profile_id, cp.direction, cp.anchor, cp.local_time, cp.weekday, "
         "ST_Y(pl.geom::geometry) AS place_lat, ST_X(pl.geom::geometry) AS place_lon "
         f"{_PENDING} ORDER BY p.first_seen DESC, cp.id LIMIT %s", (limit,))
 

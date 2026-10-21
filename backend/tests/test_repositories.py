@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.db.database import Database
-from app.repositories import areas, commutes, jobs, listings, places, profiles, properties
+from app.repositories import areas, commute_points, commutes, jobs, listings, properties
 from app.services import filters
 from app.sources.base import RawListing, SearchFilters
 
@@ -117,7 +117,7 @@ def test_filters_reject_an_impossible_range(db: Database) -> None:
 def test_properties_view_search_and_detail(db: Database) -> None:
     listings.insert_new(db, raw("a", rent="1500", beds=1, address="A Road"))
     listings.insert_new(db, raw("b", rent="2500", beds=2, address="B Road"))
-    res = properties.search(db, q=None, min_rent=None, max_rent=2000, min_beds=None, max_beds=None, borough=None, max_commute=None,
+    res = properties.search(db, q=None, min_rent=None, max_rent=2000, min_beds=None, max_beds=None, borough=None, commute=[],
                             furnished=None, sort="rent", order="asc", limit=10, offset=0)
     assert res["total"] == 1 and res["rows"][0]["address"] == "A Road"
     pid = res["rows"][0]["id"]
@@ -139,35 +139,94 @@ def test_areas_crud(db: Database) -> None:
     assert areas.list_all(db) == []
 
 
-def test_places_and_profiles_invalidate_routes(db: Database) -> None:
-    places.save(db, "work", "Work", None, "EC2R 8AH", 51.5, -0.09)
-    _, pid = listings.insert_new(db, raw("1"))
-    profile = db.fetch_one("SELECT id FROM commute_profiles WHERE slug = 'work_am'")
-    assert profile
-    pair = {"property_id": pid, "profile_id": profile["id"]}
-    commutes.save_route(db, pair, date(2026, 10, 20), {"duration_min": 31, "walk_min": 5, "transfers": 1, "fare_pence": 280, "summary": "x"})
-    assert db.fetch_one("SELECT work_am_min FROM v_properties WHERE id = %s", (pid,)) == {"work_am_min": 31}
+def _point(db: Database, label: str = "Work", pm: bool = True, lat: float = 51.5, lon: float = -0.09) -> tuple[int, list[int]]:
+    journeys = [commute_points.TO_POINT, commute_points.FROM_POINT] if pm else [commute_points.TO_POINT]
+    point_id = commute_points.add(db, label, None, "EC2R 8AH", lat, lon, journeys)
+    ids = [r["id"] for r in db.fetch_all("SELECT id FROM commute_profiles WHERE point_id = %s ORDER BY id", (point_id,))]
+    return point_id, ids
+
+
+def _route(db: Database, pid: int, profile_id: int, minutes: int | None) -> None:
+    commutes.save_route(db, {"property_id": pid, "profile_id": profile_id}, date(2026, 10, 20),
+                        {"duration_min": minutes, "walk_min": 5, "transfers": 1, "fare_pence": 280, "summary": "x"} if minutes else None)
+
+
+def test_points_and_journeys_invalidate_routes_only_when_the_plan_changes(db: Database) -> None:
     from datetime import time
 
-    assert profiles.update(db, "work_am", time(8, 30), 2, True)
-    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}      # times changed: recompute
-    assert profiles.update(db, "nope", time(8, 0), 1, True) is False
-    commutes.save_route(db, pair, date(2026, 10, 20), {"duration_min": 31})
-    places.save(db, "work", "Work", None, "E14 5AB", 51.5, -0.02)
-    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}      # place moved: routes are wrong
+    _, pid = listings.insert_new(db, raw("1"))
+    point_id, (to_id, back_id) = _point(db)
+    _route(db, pid, to_id, 31)
+    assert db.fetch_one("SELECT duration_min, point_label FROM v_commutes WHERE property_id = %s", (pid,)) == {
+        "duration_min": 31, "point_label": "Work"}
+    assert commute_points.update_journey(db, to_id, "to_place", "arrive_by", time(9, 0), 1, False)       # only switched off
+    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 1}
+    assert db.fetch_one("SELECT count(*) AS n FROM v_commutes") == {"n": 0}                              # hidden while off
+    assert commute_points.update_journey(db, to_id, "to_place", "arrive_by", time(8, 30), 2, True)
+    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}                          # new time: recompute
+    assert commute_points.update_journey(db, 999999, "to_place", "arrive_by", time(8, 0), 1, True) is False
+    _route(db, pid, back_id, 25)
+    assert commute_points.update(db, point_id, "Office", None, True, ("E14 5AB", 51.5, -0.02))
+    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}                          # point moved
 
 
-def test_pending_commute_pairs_need_a_place_and_a_geometry(db: Database) -> None:
+def test_a_deactivated_or_deleted_point_leaves_the_views_and_comes_back(db: Database) -> None:
+    _, pid = listings.insert_new(db, raw("1"))
+    point_id, (to_id, _) = _point(db)
+    _route(db, pid, to_id, 31)
+    assert commute_points.update(db, point_id, "Work", None, False)
+    assert db.fetch_one("SELECT count(*) AS n FROM v_commutes") == {"n": 0}
+    assert db.fetch_one("SELECT count(*) AS n FROM v_commute_points") == {"n": 0}
+    assert commutes.count_pending(db) == 0                                                               # no TfL calls for it
+    assert commute_points.update(db, point_id, "Work", None, True)
+    assert db.fetch_one("SELECT count(*) AS n FROM v_commutes") == {"n": 1}                              # routes were kept
+    assert commute_points.delete(db, point_id) and commute_points.delete(db, point_id) is False
+    assert db.fetch_one("SELECT count(*) AS n FROM commute_routes") == {"n": 0}
+
+
+def test_pending_commute_pairs_cover_every_active_point(db: Database) -> None:
     listings.insert_new(db, raw("1"))
-    assert commutes.pending_pairs(db, 10) == [] and commutes.count_pending(db) == 0         # no work place yet
-    places.save(db, "work", "Work", None, "EC2R 8AH", 51.5, -0.09)
+    assert commutes.pending_pairs(db, 10) == [] and commutes.count_pending(db) == 0                      # no points yet
+    work, _ = _point(db, "Work")
+    _point(db, "Gym", pm=False, lat=51.4, lon=-0.2)
     pairs = commutes.pending_pairs(db, 10)
-    assert {p["slug"] for p in pairs} == {"work_am", "work_pm"} and commutes.count_pending(db) == 2
-    commutes.save_route(db, pairs[0], date(2026, 10, 20), None)                         # "no journey" is remembered too
+    assert len(pairs) == 3 and commutes.count_pending(db) == 3
+    commutes.save_route(db, pairs[0], date(2026, 10, 20), None)                                          # "no journey" is remembered too
+    assert commutes.count_pending(db) == 2
+    commute_points.update(db, work, "Work", None, False)
     assert commutes.count_pending(db) == 1
     commutes.count_api_call(db)
     commutes.count_api_call(db, n=2)
     assert db.fetch_one("SELECT calls FROM api_usage WHERE provider = 'tfl'") == {"calls": 3}
+
+
+def test_commute_filters_need_every_journey_of_each_chosen_point(db: Database) -> None:
+    near, far = listings.insert_new(db, raw("a", address="A Road"))[1], listings.insert_new(db, raw("b", address="B Road"))[1]
+    work, (w_am, w_pm) = _point(db, "Work")
+    gym, (g_am,) = _point(db, "Gym", pm=False, lat=51.4, lon=-0.2)
+    for pid, am, pm, g in ((near, 20, 25, 10), (far, 20, 50, 45)):
+        _route(db, pid, w_am, am)
+        _route(db, pid, w_pm, pm)
+        _route(db, pid, g_am, g)
+
+    def ids(*spec: str) -> set[int]:
+        res = properties.search(db, q=None, min_rent=None, max_rent=None, min_beds=None, max_beds=None, borough=None,
+                                commute=properties.parse_commute(db, list(spec)), furnished=None, sort="newest", order="asc",
+                                limit=10, offset=0)
+        return {r["id"] for r in res["rows"]}
+
+    assert ids() == {near, far}
+    assert ids(f"{work}:30") == {near}                      # the evening trip counts too
+    assert ids(f"{work}:60", f"{gym}:20") == {near}         # several points, each with its own limit
+    assert ids("all:30") == {near}                          # one limit for every active point
+    assert ids(f"{work}:60", f"{gym}:60") == {near, far}
+    with pytest.raises(Exception, match="commute filter"):
+        properties.parse_commute(db, ["nonsense"])
+    res = properties.search(db, q=None, min_rent=None, max_rent=None, min_beds=None, max_beds=None, borough=None, commute=[],
+                            furnished=None, sort=f"commute:{gym}", order="asc", limit=10, offset=0)
+    assert [r["id"] for r in res["rows"]] == [near, far] and len(res["rows"][0]["commutes"]) == 3
+    _route(db, near, w_pm, None)                              # no route found for one journey
+    assert ids(f"{work}:999") == {far}
 
 
 def test_job_run_bookkeeping(db: Database) -> None:

@@ -66,25 +66,39 @@ def test_filters_round_trip_and_sweep_stored_listings(client: TestClient, db: Da
     assert client.put("/api/filters", json={"min_bedrooms": -1}).status_code == 422
 
 
-def test_places_geocode_and_profiles(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_commute_points_and_journeys(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_geocode(_client: Any, postcode: str) -> dict[str, Any]:
         return {"latitude": 51.5, "longitude": -0.09, "admin_district": "City of London"}
 
     monkeypatch.setattr(postcodes, "geocode", fake_geocode)
-    assert client.put("/api/places/office", json={"postcode": "EC2R 8AH"}).status_code == 404
-    assert client.put("/api/places/work", json={"postcode": "nonsense"}).status_code == 400
-    ok = client.put("/api/places/work", json={"postcode": "ec2r8ah", "label": "Office"}).json()
-    assert ok == {"kind": "work", "postcode": "EC2R 8AH", "lat": 51.5, "lon": -0.09, "borough": "City of London"}
-    place = client.get("/api/places").json()[0]
-    assert place["kind"] == "work" and place["label"] == "Office" and place["postcode"] == "EC2R 8AH"
-    assert client.delete("/api/places/work").status_code == 200 and client.get("/api/places").json() == []
+    assert client.get("/api/commute-points").json() == []
+    assert client.post("/api/commute-points", json={"postcode": "nonsense"}).status_code == 400
+    one = client.post("/api/commute-points", json={"postcode": "ec2r8ah", "label": "Office"}).json()
+    assert one["postcode"] == "EC2R 8AH" and one["borough"] == "City of London"
+    duo = client.post("/api/commute-points", json={"postcode": "EC2R 8AH", "label": "Gym", "am_pm": True, "local_time": "07:30"}).json()
 
-    profiles = {p["slug"]: p for p in client.get("/api/profiles").json()}
-    assert set(profiles) == {"work_am", "work_pm", "home"} and profiles["work_am"]["local_time"] == "09:00"
-    assert client.put("/api/profiles/work_am", json={"local_time": "08:15", "weekday": 2}).json() == {"ok": True}
-    assert next(p for p in client.get("/api/profiles").json() if p["slug"] == "work_am")["local_time"] == "08:15"
-    assert client.put("/api/profiles/work_am", json={"local_time": "25:99", "weekday": 2}).status_code == 400
-    assert client.put("/api/profiles/zzz", json={"local_time": "08:00", "weekday": 2}).status_code == 404
+    points = {p["label"]: p for p in client.get("/api/commute-points").json()}
+    assert set(points) == {"Office", "Gym"} and points["Office"]["enabled"] is True and points["Office"]["lat"] == 51.5
+    assert [(j["direction"], j["anchor"], j["local_time"]) for j in points["Office"]["journeys"]] == [
+        ("to_place", "arrive_by", "09:00")]                                                         # one journey by default
+    assert [(j["direction"], j["anchor"], j["local_time"]) for j in points["Gym"]["journeys"]] == [
+        ("to_place", "arrive_by", "07:30"), ("from_place", "depart_at", "18:00")]                    # the AM/PM pair
+
+    assert client.put(f"/api/commute-points/{one['id']}", json={"label": "HQ", "enabled": False}).json() == {"ok": True}
+    assert client.put("/api/commute-points/999999", json={"label": "x"}).status_code == 404
+    assert client.put(f"/api/commute-points/{one['id']}", json={"label": " "}).status_code == 400
+    hq = next(p for p in client.get("/api/commute-points").json() if p["id"] == one["id"])
+    assert hq["label"] == "HQ" and hq["enabled"] is False
+
+    new = client.post(f"/api/commute-points/{one['id']}/journeys",
+                      json={"direction": "from_place", "anchor": "depart_at", "local_time": "17:45", "weekday": 3}).json()
+    assert client.put(f"/api/journeys/{new['id']}", json={"local_time": "25:99"}).status_code == 400
+    assert client.put(f"/api/journeys/{new['id']}", json={"local_time": "18:15", "weekday": 3, "enabled": False}).json() == {"ok": True}
+    assert client.put("/api/journeys/999999", json={"local_time": "08:00"}).status_code == 404
+    assert client.post("/api/commute-points/999999/journeys", json={}).status_code == 404
+    assert client.delete(f"/api/journeys/{new['id']}").status_code == 200
+    assert client.delete(f"/api/commute-points/{duo['id']}").status_code == 200
+    assert [p["label"] for p in client.get("/api/commute-points").json()] == ["HQ"]
 
 
 def test_jobs_list_update_and_run_now(client: TestClient) -> None:
@@ -103,7 +117,7 @@ def test_jobs_list_update_and_run_now(client: TestClient) -> None:
     assert client.post("/api/jobs/enrich_pending/run").status_code == 202
     assert client.get("/api/jobs/runs").status_code == 200
     status = client.get("/api/status").json()
-    assert set(status) == {"active_listings", "properties", "detail_pending", "areas", "places", "commute_pending"}
+    assert set(status) == {"active_listings", "properties", "detail_pending", "areas", "commute_points", "commute_pending"}
 
 
 def test_properties_list_sort_filter_and_detail(client: TestClient, db: Database) -> None:
@@ -118,6 +132,8 @@ def test_properties_list_sort_filter_and_detail(client: TestClient, db: Database
     detail = client.get(f"/api/properties/{pid}").json()
     assert detail["property"]["id"] == pid and len(detail["listings"]) == 1 and detail["commutes"] == []
     assert client.get("/api/properties/999999").status_code == 404
+    assert client.get("/api/properties", params={"commute": "nonsense"}).status_code == 400
+    assert client.get("/api/properties", params={"commute": ["all:30", "9:45"]}).json()["total"] == 0
 
 
 def test_sql_and_chart_endpoints(client: TestClient, db: Database) -> None:
@@ -153,7 +169,7 @@ def test_database_overview_and_migration_status(client: TestClient) -> None:
     body = client.get("/api/database").json()
     names = {r["name"] for r in body["relations"]}
     assert {"properties", "listings", "v_properties", "v_property_text"} <= names and "spatial_ref_sys" not in names
-    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0005_text_search" and body["migrations"]["pending"] == []
+    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0006_commute_points" and body["migrations"]["pending"] == []
     assert client.post("/api/database/migrate").json() == {"applied": []}
 
 
@@ -200,7 +216,7 @@ def test_map_points_are_filtered_and_not_confused_with_a_property_id(client: Tes
     listings.insert_new(db, nowhere)
     body = client.get("/api/properties/map").json()
     assert body["total"] == 2 and {p["address"] for p in body["points"]} == {"A Road", "B Road"}
-    assert {"id", "lat", "lon", "rent_pcm", "url", "work_am_min"} <= set(body["points"][0])
+    assert {"id", "lat", "lon", "rent_pcm", "url", "commutes"} <= set(body["points"][0])
     assert all(isinstance(p["rent_pcm"], float) for p in body["points"])          # numbers, not strings
     cheap = client.get("/api/properties/map", params={"max_rent": 2000}).json()
     assert [p["address"] for p in cheap["points"]] == ["A Road"]

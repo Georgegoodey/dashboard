@@ -1,6 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select, Spacer, StatStrip, Toolbar } from "@/components";
+import { useDebounced } from "@/hooks";
+import { CommuteFilter, describeJourney, minutesText, useCommuteRules } from "../commute";
 import { gbp, lettings, Property, PropertyDetail, PropertyFilters } from "../lib";
 import { FilterBar, FilterToggle } from "../filters";
 import "./properties.css";
@@ -9,26 +11,12 @@ const PAGE = 50;
 const SORTS = [
   { value: "newest", label: "Newest" },
   { value: "rent", label: "Rent" },
-  { value: "commute", label: "Morning commute" },
   { value: "vs_median", label: "Rent vs median" },
-  { value: "distance_work", label: "Distance to work" },
   { value: "bedrooms", label: "Bedrooms" },
 ];
 const BEDS = [{ value: "", label: "Any beds" }, ...[0, 1, 2, 3, 4].map((n) => ({ value: String(n), label: n === 0 ? "Studio+" : `${n}+ beds` }))];
 
 const num = (s: string) => (s.trim() === "" || Number.isNaN(Number(s)) ? undefined : Number(s));
-
-function useDebounced<T>(value: T, ms = 300): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
-
-const commuteText = (min: number | null, changes: number | null) =>
-  min == null ? "–" : `${min} min${changes ? ` · ${changes} ch` : ""}`;
 
 function VsMedian({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="muted">–</span>;
@@ -45,11 +33,14 @@ function Detail({ id }: { id: number }) {
     <div className="prop-detail">
       <div>
         <div className="detail-h">Commutes</div>
-        {commutes.length === 0 && <div className="muted">None yet. Set your work address in Settings and wait for the commute job.</div>}
+        {commutes.length === 0 && <div className="muted">None yet. Add a commute point in Settings and wait for the commute job.</div>}
         {commutes.map((c) => (
-          <div key={c.slug} className="commute">
-            <b>{c.label}</b> <span className="muted">· {c.duration_min == null ? "no route" : `${c.duration_min} min`}
-              {c.fare_pence != null && c.slug === "work_am" ? ` · £${(c.fare_pence / 100).toFixed(2)}` : ""}</span>
+          <div key={c.profile_id} className="commute">
+            <b>{c.journey}</b>
+            <span className="muted"> · {c.duration_min == null ? "no route" : `${c.duration_min} min`}
+              {c.transfers ? ` · ${c.transfers} change${c.transfers === 1 ? "" : "s"}` : ""}
+              {c.fare_pence != null ? ` · £${(c.fare_pence / 100).toFixed(2)}` : ""}
+              {c.distance_km != null ? ` · ${c.distance_km} km away` : ""}</span>
             <div className="muted small">{c.summary}</div>
           </div>
         ))}
@@ -86,18 +77,25 @@ export default function PropertiesPanel() {
   const [q, setQ] = useState("");
   const [minBeds, setMinBeds] = useState("");
   const [maxRent, setMaxRent] = useState("");
-  const [maxCommute, setMaxCommute] = useState("");
+  const commute = useCommuteRules();
   const [sort, setSort] = useState("newest");
   const [order, setOrder] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false); // phones only: the filters fold away to leave room for the list
 
+  const sorts = useMemo(
+    () => [...SORTS, ...commute.active.map((p) => ({ value: `commute:${p.id}`, label: `Commute to ${p.label}` }))],
+    [commute.active],
+  );
+  const sortKey = sorts.some((o) => o.value === sort) ? sort : "newest";      // a point that was switched off cannot be sorted by
+
   const filters: PropertyFilters = useDebounced({
-    q: q || undefined, min_beds: num(minBeds), max_rent: num(maxRent), max_commute: num(maxCommute),
-    sort, order, limit: PAGE, offset: page * PAGE,
+    q: q || undefined, min_beds: num(minBeds), max_rent: num(maxRent), commute: commute.params,
+    sort: sortKey, order, limit: PAGE, offset: page * PAGE,
   });
-  useEffect(() => setPage(0), [q, minBeds, maxRent, maxCommute, sort, order]);
+  const commuteKey = commute.params.join(",");
+  useEffect(() => setPage(0), [q, minBeds, maxRent, commuteKey, sortKey, order]);
 
   const list = useQuery({
     queryKey: ["properties", filters], queryFn: () => lettings.properties(filters),
@@ -123,9 +121,9 @@ export default function PropertiesPanel() {
             progress: s ? detailsDone : undefined,
           },
           {
-            label: "Commutes", muted: !s || s.places === 0,
-            value: !s || s.places === 0 ? "–" : s.commute_pending > 0 ? s.commute_pending.toLocaleString("en-GB") : "done",
-            hint: !s ? undefined : s.areas === 0 ? "add search areas in Settings" : s.places === 0 ? "set your work address in Settings" : s.commute_pending > 0 ? "journeys left to plan" : "all planned",
+            label: "Commutes", muted: !s || s.commute_points === 0,
+            value: !s || s.commute_points === 0 ? "–" : s.commute_pending > 0 ? s.commute_pending.toLocaleString("en-GB") : "done",
+            hint: !s ? undefined : s.areas === 0 ? "add search areas in Settings" : s.commute_points === 0 ? "add a commute point in Settings" : s.commute_pending > 0 ? "journeys left to plan" : "all planned",
           },
         ]}
       />
@@ -144,15 +142,13 @@ export default function PropertiesPanel() {
         <Field label="Max rent £/month">
           <input className="input" inputMode="numeric" placeholder="any" value={maxRent} onChange={(e) => setMaxRent(e.target.value)} />
         </Field>
-        <Field label="Max commute (min)">
-          <input className="input" inputMode="numeric" placeholder="any" value={maxCommute} onChange={(e) => setMaxCommute(e.target.value)} />
-        </Field>
         <Field label="Sort">
-          <Select value={sort} onChange={setSort} options={SORTS} />
+          <Select value={sortKey} onChange={setSort} options={sorts} />
         </Field>
         <Field label="Order">
           <Select<"asc" | "desc"> value={order} onChange={setOrder} options={[{ value: "asc", label: "Low to high" }, { value: "desc", label: "High to low" }]} />
         </Field>
+        <CommuteFilter rules={commute.rules} setRules={commute.setRules} active={commute.active} />
       </FilterBar>
       {health.data && !health.data.database_ok && <Note kind="error">Database unavailable: {health.data.database_error || "is Docker running?"} Start it with: docker compose up -d db</Note>}
       {list.error && <Note kind="error">{list.error.message}</Note>}
@@ -164,7 +160,8 @@ export default function PropertiesPanel() {
               <thead>
                 <tr>
                   <th>Address</th><th className="num">Rent</th><th>Beds</th><th className="num hide-sm">vs median</th>
-                  <th className="num hide-sm">Work am</th><th className="num hide-sm">Work pm</th><th className="num hide-sm">Days</th><th className="hide-sm" />
+                  {commute.active.map((pt) => <th key={pt.id} className="num hide-sm" title={`Minutes to ${pt.label}`}>{pt.label}</th>)}
+                  <th className="num hide-sm">Days</th><th className="hide-sm" />
                 </tr>
               </thead>
               <tbody>
@@ -178,12 +175,16 @@ export default function PropertiesPanel() {
                       <td className="num"><b>{gbp(p.rent_pcm)}</b>{p.price_changes > 0 && <span className="muted small"> ({p.price_changes}↕)</span>}</td>
                       <td>{p.bedrooms ?? "–"}{p.bathrooms ? ` / ${p.bathrooms}` : ""}</td>
                       <td className="num hide-sm"><VsMedian pct={p.rent_vs_median_pct} /></td>
-                      <td className="num hide-sm">{commuteText(p.work_am_min, p.work_am_transfers)}</td>
-                      <td className="num hide-sm">{commuteText(p.work_pm_min, p.work_pm_transfers)}</td>
+                      {commute.active.map((pt) => (
+                        <td key={pt.id} className="num hide-sm"
+                          title={pt.journeys.filter((j) => j.enabled).map((j) => describeJourney(j, pt.label)).join("\n")}>
+                          {minutesText(p.commutes, pt.id)}
+                        </td>
+                      ))}
                       <td className="num hide-sm">{p.days_on_market}</td>
                       <td className="hide-sm">{p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open advert in a new tab" aria-label="Open advert in a new tab"><I.external size={ICON_SIZE} /></a>}</td>
                     </tr>
-                    {open === p.id && <tr className="detail-row"><td colSpan={8}><Detail id={p.id} /></td></tr>}
+                    {open === p.id && <tr className="detail-row"><td colSpan={6 + commute.active.length}><Detail id={p.id} /></td></tr>}
                   </Fragment>
                 ))}
               </tbody>
