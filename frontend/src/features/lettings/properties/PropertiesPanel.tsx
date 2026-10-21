@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select, Spacer, StatStrip, Toolbar } from "@/components";
 import { useDebounced } from "@/hooks";
-import { CommuteFilter, describeJourney, minutesText, useCommuteRules } from "../commute";
+import { CommuteFilter, describeJourney, minutesText, useCommuteLimits } from "../commute";
 import { gbp, lettings, Property, PropertyDetail, PropertyFilters } from "../lib";
 import { FilterBar, FilterToggle } from "../filters";
 import "./properties.css";
@@ -77,7 +77,7 @@ export default function PropertiesPanel() {
   const [q, setQ] = useState("");
   const [minBeds, setMinBeds] = useState("");
   const [maxRent, setMaxRent] = useState("");
-  const commute = useCommuteRules();
+  const commute = useCommuteLimits();
   const [sort, setSort] = useState("newest");
   const [order, setOrder] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
@@ -148,7 +148,7 @@ export default function PropertiesPanel() {
         <Field label="Order">
           <Select<"asc" | "desc"> value={order} onChange={setOrder} options={[{ value: "asc", label: "Low to high" }, { value: "desc", label: "High to low" }]} />
         </Field>
-        <CommuteFilter rules={commute.rules} setRules={commute.setRules} active={commute.active} />
+        <CommuteFilter limits={commute} />
       </FilterBar>
       {health.data && !health.data.database_ok && <Note kind="error">Database unavailable: {health.data.database_error || "is Docker running?"} Start it with: docker compose up -d db</Note>}
       {list.error && <Note kind="error">{list.error.message}</Note>}

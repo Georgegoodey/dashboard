@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Button, Field, I, ICON_SIZE, Note, Panel, Scroll, Select } from "@/components";
 import { lettings } from "../lib";
 import AreasManager from "./AreasManager";
-import CommutePointsManager from "./CommutePointsManager";
 import "./settings.css";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -74,18 +73,9 @@ function FiltersSection() {
 }
 
 export default function SettingsPanel() {
-  const health = useQuery({ queryKey: ["health"], queryFn: lettings.health });
-
   return (
     <Panel>
       <Scroll>
-        <Section title="Commute points" hint="Places you travel to, as many as you like. Each one gets a public-transport journey from every home; add a return journey for a morning and evening pair.">
-          {health.data && !health.data.tfl_key_configured && (
-            <Note>No TfL key set, so journeys are fetched at 1 a second. Add TFL_APP_KEY to .env (free from api-portal.tfl.gov.uk) for 5 a second.</Note>
-          )}
-          <CommutePointsManager />
-        </Section>
-
         <Section title="Search filters" hint="Only homes inside these limits are fetched and shown. Loosening a limit brings hidden homes back.">
           <FiltersSection />
         </Section>

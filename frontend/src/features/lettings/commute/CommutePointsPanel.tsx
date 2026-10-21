@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button, Empty, Field, I, ICON_SIZE, Note, Select } from "@/components";
-import { describeJourney, useCommutePoints } from "../commute";
+import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select } from "@/components";
 import { CommutePoint, Journey, JourneyIn, lettings, WEEKDAYS } from "../lib";
+import { describeJourney } from "./format";
+import { useCommutePoints } from "./useCommutePoints";
 
 const DAYS = WEEKDAYS.map((d, i) => ({ value: String(i), label: d }));
 const WAYS = [
@@ -128,16 +129,32 @@ function NewPoint() {
 }
 
 /** Any number of places to commute to. Each has one journey by default, or a morning and evening pair. */
-export default function CommutePointsManager() {
+export default function CommutePointsPanel() {
   const points = useCommutePoints();
+  const health = useQuery({ queryKey: ["health"], queryFn: lettings.health });
   return (
-    <>
-      {points.error && <Note kind="error">{points.error.message}</Note>}
-      {points.data?.length === 0 && <Empty>No commute points yet. Add one below and its journeys are planned for every home.</Empty>}
-      {points.data?.map((p) => (
-        <PointCard key={`${p.id}-${p.label}-${p.postcode}-${p.enabled}`} point={p} />
-      ))}
-      <NewPoint />
-    </>
+    <Panel>
+      <Scroll>
+        <section className="card commute-card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Commute points</div>
+              <div className="card-sub">Places you travel to, as many as you like. Each gets a public-transport journey from every home; add a return journey for a morning and evening pair.</div>
+            </div>
+          </div>
+          <div className="card-body">
+            {health.data && !health.data.tfl_key_configured && (
+              <Note>No TfL key set, so journeys are fetched at 1 a second. Add TFL_APP_KEY to .env (free from api-portal.tfl.gov.uk) for 5 a second.</Note>
+            )}
+            {points.error && <Note kind="error">{points.error.message}</Note>}
+            {points.data?.length === 0 && <Empty>No commute points yet. Add one below and its journeys are planned for every home.</Empty>}
+            {points.data?.map((p) => (
+              <PointCard key={`${p.id}-${p.label}-${p.postcode}-${p.enabled}`} point={p} />
+            ))}
+            <NewPoint />
+          </div>
+        </section>
+      </Scroll>
+    </Panel>
   );
 }
