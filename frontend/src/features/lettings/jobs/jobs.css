@@ -1,9 +1,23 @@
-/* Jobs: one dense row per job; click a row for its details and schedule.
+/* Jobs: a section per listings site, each with its own header and figures, then one dense row per job;
+   click a row for its details and schedule.
    Layout follows the width of the panel (a docked tab can be as narrow as a phone), not the screen. */
-.jobs-list {
+.jsection {
   container-type: inline-size; margin: 0 3px var(--space-4) 0;
   border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow); background: var(--bg);
 }
+.jsection-head { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3); background: var(--surface); border-bottom: var(--border-w) solid var(--border); }
+.jsection-title { margin: 0; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.jspacer { flex: 1; }
+.jsection .stat-strip { flex-wrap: wrap; }
+.jsection .stat { flex: 1 1 120px; }
+.jobs-list { background: var(--bg); }
+.jdupes { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-bottom: var(--border-w) solid var(--border); }
+.jdupes p { margin: 0; }
+.jdupes-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.jdupes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.jdupes-list > li { border: var(--rule-w) solid var(--border); padding: var(--space-2) var(--space-3); }
+.jdupes-home { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: baseline; }
+.jdupes-addr { font-weight: 600; overflow-wrap: anywhere; }
 
 .jrow { border-top: var(--rule-w) solid var(--border); }
 .jrow-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); padding-right: var(--space-2); }
@@ -43,6 +57,7 @@
 /* narrow panels: each row folds to two lines (name + state, then a short summary) and the table header goes */
 @container (max-width: 620px) {
   .jhead { display: none; }
+  .jsection .stat { flex-basis: 100px; padding: var(--space-2) var(--space-3); }
   .jrow-main { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--space-1); }
   .jsched, .jlast, .jnext { display: none; }
   .jmeta { display: block; grid-column: 1 / -1; padding-left: calc(12px + var(--space-2)); color: var(--text-muted); font-size: 12px; }

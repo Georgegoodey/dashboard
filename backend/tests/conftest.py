@@ -15,7 +15,7 @@ os.environ.setdefault("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 IMAGE = "postgis/postgis:16-3.4"
 DATA_TABLES = ("listing_price_history", "match_candidates", "commute_routes", "listings", "properties", "job_runs",
-               "postcode_geo", "api_usage", "commute_points", "search_areas")
+               "postcode_geo", "api_usage", "commute_points", "search_areas", "property_merges")
 
 
 def _docker_available() -> bool:

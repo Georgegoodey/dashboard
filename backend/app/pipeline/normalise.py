@@ -71,3 +71,25 @@ def parse_iso_datetime(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def outcode_from_text(text: str | None) -> str | None:
+    """The outward postcode ending an address or title, such as 'London SW18' or 'Battersea Rise, SW11'; None if absent."""
+    tail = (text or "").replace(",", " ").split()
+    for token in reversed(tail[-3:]):
+        if OUTCODE_RE.match(token):
+            return token.upper()
+    return None
+
+
+def html_to_text(html: str | None) -> str | None:
+    """Advert HTML to plain text, keeping paragraph, list and line breaks."""
+    if not html:
+        return None
+    from selectolax.lexbor import LexborHTMLParser
+
+    html = re.sub(r"(?i)<br\s*/?>\s*</li>", "</li>", html)
+    marked = re.sub(r"(?i)<br\s*/?>|</p>|</li>|</div>", lambda m: "\n\n" if m.group(0).lower() == "</p>" else "\n", html)
+    text = LexborHTMLParser(marked).text(separator="")
+    text = re.sub(r"[ \t\xa0]+", " ", text)
+    return re.sub(r"\n\s*\n\s*\n+", "\n\n", re.sub(r" ?\n ?", "\n", text)).strip() or None

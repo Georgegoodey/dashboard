@@ -70,7 +70,7 @@ export type PropertyDetail = {
 };
 
 export type Status = {
-  active_listings: number; properties: number; detail_pending: number; areas: number; commute_points: number; commute_pending: number;
+  active_listings: number; properties: number; detail_pending: number; areas: number; commute_points: number; commute_pending: number; commute_total: number;
 };
 export type Area = { id: number; label: string; outcode: string; enabled: boolean; properties: number };
 export type SearchFilters = { min_bedrooms: number | null; max_bedrooms: number | null; max_rent: number | null };
@@ -86,8 +86,22 @@ export type JobRun = {
   started_at: string; finished_at: string | null; status: string; trigger: string | null;
   rows_added: number; rows_updated: number; detail: Record<string, unknown> | null; error: string | null;
 };
+/** What merging the same home on several sites would do, from /api/dedupe. */
+export type DedupePreview = {
+  auto: boolean; merged_total: number;
+  preview: {
+    groups: number; would_absorb: number; candidate_pairs: number; ambiguous_skipped: number; different_street_skipped: number;
+    rent_too_far_skipped: number; incomplete_groups_skipped: number; by_sources: Record<string, number>;
+  };
+  samples: { homes: { id: number; address: string | null; postcode: string | null; bedrooms: number | null; adverts: { source: string; rent_pcm: number | null; url: string }[] }[] }[];
+};
+/** Figures for one listings site, from /api/sources. */
+export type SourceStats = {
+  name: string; enabled: boolean; active: number; withdrawn: number; new_24h: number; new_7d: number; detail_pending: number;
+  median_rent: number | null; areas_done: number; areas_total: number; last_scraped: string | null;
+};
 export type Job = {
-  id: string; title: string; description: string; enabled: boolean; interval_minutes: number;
+  id: string; title: string; description: string; /** the listings site it belongs to, if any */ source: string | null; enabled: boolean; interval_minutes: number;
   active_from: string | null; active_to: string | null; running: boolean; next_run: string | null;
   last_ok: string | null; last_run: JobRun | null;
 };
@@ -138,6 +152,10 @@ export const lettings = {
   deleteJourney: (id: number) => call(`/api/journeys/${id}`, send("DELETE")),
 
   jobs: () => call<Job[]>("/api/jobs"),
+  sources: () => call<SourceStats[]>("/api/sources"),
+  dedupe: () => call<DedupePreview>("/api/dedupe"),
+  setDedupeAuto: (auto: boolean) => call<{ auto: boolean }>("/api/dedupe", send("PUT", { auto })),
+  applyDedupe: () => call<{ groups: number; absorbed: number; listings_moved: number }>("/api/dedupe/apply", send("POST")),
   setJob: (id: string, j: { enabled: boolean; interval_minutes: number; active_from: string | null; active_to: string | null }) =>
     call(`/api/jobs/${id}`, send("PUT", j)),
   runJob: (id: string) => call(`/api/jobs/${id}/run`, send("POST")),

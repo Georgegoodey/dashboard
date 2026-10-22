@@ -101,36 +101,22 @@ export default function PropertiesPanel() {
     queryKey: ["properties", filters], queryFn: () => lettings.properties(filters),
     placeholderData: keepPreviousData, refetchInterval: 30_000,
   });
-  const status = useQuery({ queryKey: ["status"], queryFn: lettings.status, refetchInterval: 15_000 });
   const health = useQuery({ queryKey: ["health"], queryFn: lettings.health, refetchInterval: 30_000 });
 
   const rows = list.data?.rows ?? [];
   const total = list.data?.total ?? 0;
-  const s = status.data;
-  const detailsDone = s && s.active_listings > 0 ? 1 - s.detail_pending / s.active_listings : 1;
 
   return (
     <Panel>
       <StatStrip
         stats={[
-          { label: "Homes", value: total.toLocaleString("en-GB"), hint: s && s.active_listings > total ? `of ${s.active_listings.toLocaleString("en-GB")} active` : undefined },
-          {
-            label: "Advert details", muted: !s,
-            value: s ? `${Math.round(detailsDone * 100)}%` : "–",
-            hint: s && s.detail_pending > 0 ? `${s.detail_pending.toLocaleString("en-GB")} left` : "complete",
-            progress: s ? detailsDone : undefined,
-          },
-          {
-            label: "Commutes", muted: !s || s.commute_points === 0,
-            value: !s || s.commute_points === 0 ? "–" : s.commute_pending > 0 ? s.commute_pending.toLocaleString("en-GB") : "done",
-            hint: !s ? undefined : s.areas === 0 ? "add search areas in Settings" : s.commute_points === 0 ? "add a commute point in Settings" : s.commute_pending > 0 ? "journeys left to plan" : "all planned",
-          },
+          { label: "Homes", value: total.toLocaleString("en-GB") },
         ]}
       />
       <Toolbar>
         <FilterToggle open={showFilters} onToggle={() => setShowFilters((v) => !v)} />
         <Spacer />
-        <Button variant="ghost" size="sm" onClick={() => { list.refetch(); status.refetch(); }}>
+        <Button variant="ghost" size="sm" onClick={() => list.refetch()}>
           <I.rerun size={ICON_SIZE} /> Refresh
         </Button>
       </Toolbar>
@@ -153,7 +139,7 @@ export default function PropertiesPanel() {
       {health.data && !health.data.database_ok && <Note kind="error">Database unavailable: {health.data.database_error || "is Docker running?"} Start it with: docker compose up -d db</Note>}
       {list.error && <Note kind="error">{list.error.message}</Note>}
       <Scroll>
-        {rows.length === 0 && !list.isPending && <Empty>No homes match. {total === 0 ? "Run the Rightmove search job to fetch some." : ""}</Empty>}
+        {rows.length === 0 && !list.isPending && <Empty>No homes match. {total === 0 ? "Run a search job in the Jobs panel to fetch some." : ""}</Empty>}
         {rows.length > 0 && (
           <div className="table-wrap">
             <table className="table props">

@@ -98,6 +98,11 @@ def insert_new(db: Database, raw: RawListing) -> tuple[int, int]:
     """Insert a listing not seen before, with its property and first price-history row. Returns (listing_id, property_id)."""
     with db.conn() as c, c.cursor() as cur:
         source_id = _source_id(cur, raw.source)
+        known = cur.execute("SELECT id, property_id FROM listings WHERE source_id = %s AND source_listing_id = %s",
+                            (source_id, raw.source_listing_id)).fetchone()
+        if known:                       # already stored: keep its property rather than creating an orphan one
+            cur.execute("UPDATE listings SET last_seen = now(), status = 'active', missed_scrapes = 0 WHERE id = %s", (known["id"],))
+            return int(known["id"]), int(known["property_id"])
         property_id = _find_or_create_property(cur, raw, source_id)
         row = cur.execute(
             "INSERT INTO listings (property_id, source_id, source_listing_id, url, rent_pcm, rent_pw, deposit, furnished, "
@@ -138,6 +143,20 @@ def mark_missing(db: Database, source: str, outcode: str, seen_ids: set[str]) ->
                 "AND NOT EXISTS (SELECT 1 FROM listing_price_history h WHERE h.listing_id = l.id AND h.status = 'withdrawn')",
                 (source, outcode))
         return withdrawn
+
+
+def withdraw_stale(db: Database, source: str, days: int) -> int:
+    """Withdraw a portal's active listings not seen for `days`. For portals whose searches only show a sample of the results,
+    where "missing from this search" cannot be used (see mark_missing)."""
+    with db.conn() as c, c.cursor() as cur:
+        rows = cur.execute(
+            "UPDATE listings l SET status = 'withdrawn' FROM sources s WHERE s.id = l.source_id AND s.name = %s "
+            "AND l.status = 'active' AND l.last_seen < now() - make_interval(days => %s) RETURNING l.id, l.rent_pcm",
+            (source, days)).fetchall()
+        for row in rows:
+            cur.execute("INSERT INTO listing_price_history (listing_id, rent_pcm, status) VALUES (%s, %s, 'withdrawn')",
+                        (row["id"], row["rent_pcm"]))
+        return len(rows)
 
 
 def withdraw(db: Database, listing_id: int) -> None:

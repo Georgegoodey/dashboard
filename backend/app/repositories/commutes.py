@@ -8,13 +8,14 @@ from app.db.database import Database, Row
 ROUTE_TTL_DAYS = 30
 FAILED_TTL_DAYS = 1       # a pair TfL could not route is retried tomorrow, not every run
 
-_PENDING = """
+_PAIRS = """
         FROM properties p
         CROSS JOIN commute_profiles cp
         JOIN commute_points pl ON pl.id = cp.point_id AND pl.enabled AND pl.geom IS NOT NULL
         WHERE cp.enabled AND p.geom IS NOT NULL
           AND EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id AND l.status = 'active')
-          AND NOT EXISTS (SELECT 1 FROM commute_routes r
+"""
+_PENDING = _PAIRS + """          AND NOT EXISTS (SELECT 1 FROM commute_routes r
                           WHERE r.property_id = p.id AND r.profile_id = cp.id AND r.expires_at > now())
 """
 
@@ -26,6 +27,12 @@ def pending_pairs(db: Database, limit: int) -> list[Row]:
         "cp.id AS profile_id, cp.direction, cp.anchor, cp.local_time, cp.weekday, "
         "ST_Y(pl.geom::geometry) AS place_lat, ST_X(pl.geom::geometry) AS place_lon "
         f"{_PENDING} ORDER BY p.first_seen DESC, cp.id LIMIT %s", (limit,))
+
+
+def count_total(db: Database) -> int:
+    """Every journey that should exist: active properties x enabled journeys of active points, planned or not."""
+    row = db.fetch_one(f"SELECT count(*) AS n {_PAIRS}")
+    return int(row["n"]) if row else 0
 
 
 def count_pending(db: Database) -> int:
