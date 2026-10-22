@@ -113,7 +113,7 @@ export default function PropertiesPanel() {
     <Panel>
       <StatStrip
         stats={[
-          { label: "Homes", value: total.toLocaleString("en-GB"), hint: s && s.active_listings > total ? `of ${s.active_listings.toLocaleString("en-GB")} active` : undefined },
+          { label: "Homes", value: total.toLocaleString("en-GB") },
           {
             label: "Advert details", muted: !s,
             value: s ? `${Math.round(detailsDone * 100)}%` : "–",
