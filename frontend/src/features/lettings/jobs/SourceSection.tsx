@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Button, I, ICON_SIZE, StatStrip } from "@/components";
 import type { Stat } from "@/components";
 import { gbp, Job, lettings, SourceStats } from "../lib";
-import { ago, groupState } from "./format";
+import { ago, groupState, percent } from "./format";
 import { JobRow, JobsHead, State } from "./JobRow";
 
 const NAMES: Record<string, string> = { rightmove: "Rightmove", onthemarket: "OnTheMarket", openrent: "OpenRent", foxtons: "Foxtons", rentola: "Rentola" };
@@ -17,7 +17,7 @@ function siteStats(s: SourceStats): Stat[] {
   return [
     { label: "Listings", value: n(s.active), hint: s.withdrawn ? `${n(s.withdrawn)} withdrawn` : undefined, muted: s.active === 0 },
     { label: "New 24 h", value: n(s.new_24h), hint: `${n(s.new_7d)} in 7 days`, muted: s.new_24h === 0 },
-    { label: "Details left", value: n(s.detail_pending), hint: detailsDone === undefined ? undefined : `${Math.round(detailsDone * 100)}% done`, progress: detailsDone, muted: s.detail_pending === 0 },
+    { label: "Details done", value: percent(s.active - s.detail_pending, s.active), hint: s.detail_pending > 0 ? `${n(s.detail_pending)} left` : s.active > 0 ? "complete" : undefined, progress: detailsDone, muted: s.active === 0 },
     { label: "Areas scraped", value: `${s.areas_done}/${s.areas_total}`, hint: s.last_scraped ? ago(s.last_scraped) : "never", progress: s.areas_total ? s.areas_done / s.areas_total : undefined, muted: s.areas_done === 0 },
     { label: "Median rent", value: s.median_rent == null ? "–" : gbp(s.median_rent), hint: "per month", muted: s.median_rent == null },
   ];

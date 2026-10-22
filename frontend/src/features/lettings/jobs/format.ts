@@ -9,6 +9,12 @@ export function ago(iso: string | null): string {
   if (s < 172800) return `${Math.round(s / 3600)} h ago`;
   return `${Math.round(s / 86400)} d ago`;
 }
+/** "42%" of `part` in `whole`, rounded down so it never reads 100% until it is, and never 0% while there is some. */
+export function percent(part: number, whole: number): string {
+  if (whole <= 0) return "–";
+  const pct = (part / whole) * 100;
+  return part > 0 && pct < 1 ? "<1%" : `${Math.floor(pct)}%`;
+}
 export const until = (iso: string | null) => (iso ? ago(iso).replace(" ago", "") : "–");
 
 export const every = (minutes: number) => (minutes >= 60 && minutes % 60 === 0 ? `every ${minutes / 60} h` : `every ${minutes} min`);

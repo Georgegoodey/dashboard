@@ -70,7 +70,7 @@ export type PropertyDetail = {
 };
 
 export type Status = {
-  active_listings: number; properties: number; detail_pending: number; areas: number; commute_points: number; commute_pending: number;
+  active_listings: number; properties: number; detail_pending: number; areas: number; commute_points: number; commute_pending: number; commute_total: number;
 };
 export type Area = { id: number; label: string; outcode: string; enabled: boolean; properties: number };
 export type SearchFilters = { min_bedrooms: number | null; max_bedrooms: number | null; max_rent: number | null };

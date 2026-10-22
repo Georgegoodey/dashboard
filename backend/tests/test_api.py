@@ -124,7 +124,8 @@ def test_jobs_list_update_and_run_now(client: TestClient) -> None:
     assert client.post("/api/jobs/enrich_pending/run").status_code == 202
     assert client.get("/api/jobs/runs").status_code == 200
     status = client.get("/api/status").json()
-    assert set(status) == {"active_listings", "properties", "detail_pending", "areas", "commute_points", "commute_pending"}
+    assert set(status) == {"active_listings", "properties", "detail_pending", "areas", "commute_points", "commute_pending",
+                           "commute_total"}
 
 
 def test_source_stats_are_per_portal(client: TestClient, db: Database) -> None:

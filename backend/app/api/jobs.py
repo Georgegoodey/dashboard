@@ -89,4 +89,5 @@ def status(rt: Rt) -> Any:
 
     row = dict(properties.counts(rt.db))
     row["commute_pending"] = commutes.count_pending(rt.db)
+    row["commute_total"] = commutes.count_total(rt.db)
     return row

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Disclosure, Empty, I, ICON_SIZE, Note, Panel, Scroll, Spacer, StatStrip, Toolbar } from "@/components";
 import { lettings } from "../lib";
 import { DuplicatesSection } from "./DuplicatesSection";
+import { percent } from "./format";
 import { RunHistory } from "./RunHistory";
 import { Section, SourceSection } from "./SourceSection";
 import "./jobs.css";
@@ -21,17 +22,24 @@ export default function JobsPanel() {
   const dupes = all.filter((j) => j.id === "dedupe_properties");
   const other = all.filter((j) => !j.source && j.id !== "dedupe_properties");
   const newToday = sites.reduce((sum, x) => sum + x.new_24h, 0);
-  const active = sites.filter((x) => x.enabled).length;
 
   return (
     <Panel>
       {s && (
         <StatStrip
           stats={[
-            { label: "Listings", value: n(s.active_listings), hint: `${active} of ${sites.length} sites on` },
+            { label: "Active adverts", value: n(s.active_listings), hint: `${n(s.properties)} homes` },
             { label: "New 24 h", value: n(newToday), muted: newToday === 0 },
-            { label: "Details left", value: n(s.detail_pending), muted: s.detail_pending === 0 },
-            { label: "Commutes left", value: n(s.commute_pending), muted: s.commute_pending === 0 },
+            {
+              label: "Details done", value: percent(s.active_listings - s.detail_pending, s.active_listings),
+              hint: s.detail_pending > 0 ? `${n(s.detail_pending)} left` : "complete",
+              progress: s.active_listings > 0 ? 1 - s.detail_pending / s.active_listings : undefined, muted: s.detail_pending === 0,
+            },
+            {
+              label: "Commutes done", value: percent(s.commute_total - s.commute_pending, s.commute_total),
+              hint: s.commute_total === 0 ? "add a commute point" : s.commute_pending > 0 ? `${n(s.commute_pending)} left` : "complete",
+              progress: s.commute_total > 0 ? 1 - s.commute_pending / s.commute_total : undefined, muted: s.commute_pending === 0,
+            },
           ]}
         />
       )}
@@ -50,7 +58,12 @@ export default function JobsPanel() {
             title="Data processing"
             jobs={other}
             stats={[
-              { label: "Commutes left", value: n(s?.commute_pending ?? 0), hint: "journeys to plan", muted: !s || s.commute_pending === 0 },
+              {
+                label: "Commutes done", value: s ? percent(s.commute_total - s.commute_pending, s.commute_total) : "–",
+                hint: s && s.commute_total > 0 ? (s.commute_pending > 0 ? `${n(s.commute_pending)} left` : "complete") : undefined,
+                progress: s && s.commute_total > 0 ? 1 - s.commute_pending / s.commute_total : undefined,
+                muted: !s || s.commute_pending === 0,
+              },
               { label: "Commute points", value: n(s?.commute_points ?? 0), muted: !s || s.commute_points === 0 },
               { label: "Search areas", value: n(s?.areas ?? 0), muted: !s || s.areas === 0 },
             ]}
