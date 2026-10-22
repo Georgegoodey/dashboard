@@ -16,8 +16,10 @@ from app.jobs.runner import JobRunner
 from app.jobs.tasks import JOBS
 from app.scheduler import SchedulerService
 from app.sources.base import Source
+from app.sources.foxtons import Foxtons
 from app.sources.onthemarket import OnTheMarket
 from app.sources.openrent import OpenRent
+from app.sources.rentola import Rentola
 from app.sources.rightmove import Rightmove
 
 log = logging.getLogger("app")
@@ -29,7 +31,7 @@ class Runtime:
         self.settings = settings
         self.db = db or Database(settings.database_url, settings.readonly_database_url)
         # one instance per portal, so each has one shared throttle for its search and advert pages
-        self.sources: dict[str, Source] = {s.name: s for s in (Rightmove(), OnTheMarket(), OpenRent())}
+        self.sources: dict[str, Source] = {s.name: s for s in (Rightmove(), OnTheMarket(), OpenRent(), Foxtons(), Rentola())}
         self.runner = JobRunner(self, JOBS)
         self.scheduler = SchedulerService(self)
         self.chat = ChatService(settings, self.db)

@@ -106,7 +106,8 @@ def test_jobs_list_update_and_run_now(client: TestClient) -> None:
     client.app.state.runtime.runner.ensure_settings()  # type: ignore[attr-defined]
     jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
     assert set(jobs) == {"scrape_rightmove", "details_rightmove", "scrape_onthemarket", "details_onthemarket",
-                         "scrape_openrent", "details_openrent", "enrich_pending", "commute_pending"}
+                         "scrape_openrent", "details_openrent", "scrape_foxtons", "details_foxtons",
+                         "scrape_rentola", "details_rentola", "enrich_pending", "commute_pending"}
     j = jobs["scrape_rightmove"]
     assert j["interval_minutes"] == 180 and j["active_from"] == "07:00" and j["enabled"] is True and j["last_run"] is None
     body = {"enabled": False, "interval_minutes": 60, "active_from": None, "active_to": None}
@@ -170,7 +171,7 @@ def test_database_overview_and_migration_status(client: TestClient) -> None:
     body = client.get("/api/database").json()
     names = {r["name"] for r in body["relations"]}
     assert {"properties", "listings", "v_properties", "v_property_text"} <= names and "spatial_ref_sys" not in names
-    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0008_area_scraped_at" and body["migrations"]["pending"] == []
+    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0009_foxtons_rentola" and body["migrations"]["pending"] == []
     assert client.post("/api/database/migrate").json() == {"applied": []}
 
 

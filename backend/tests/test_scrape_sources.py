@@ -12,7 +12,7 @@ from app.jobs import tasks
 from app.repositories import areas
 from app.runtime import Runtime
 from app.services import filters
-from app.sources.base import Blocked, NotFound, RawListing, SearchFilters
+from app.sources.base import Blocked, Incomplete, NotFound, RawListing, SearchFilters
 
 pytestmark = pytest.mark.integration
 
@@ -101,6 +101,35 @@ async def test_a_stopped_scrape_resumes_with_the_areas_that_waited_longest(setti
     assert [a["outcode"] for a in areas.list_enabled(db)] == ["KT1", "KT2", "KT3"]                  # no source: by name
 
 
+async def test_a_sample_only_portal_never_withdraws_by_absence_but_by_age(settings: Settings, db: Database) -> None:
+    areas.upsert(db, "SW11", "Battersea", True)
+    filters.update(db, SearchFilters(min_bedrooms=1, max_bedrooms=4, max_rent=3500))
+    portal = FakePortal([listing("1"), listing("2")])
+    real = portal.search
+
+    async def sample(client: httpx.AsyncClient, location_id: str, flt: SearchFilters | None = None) -> AsyncIterator[RawListing]:
+        async for item in real(client, location_id, flt):
+            yield item
+        raise Incomplete("only a sample")
+
+    portal.search = sample  # type: ignore[method-assign, assignment]
+    rt = runtime(settings, db, portal)
+    stats = await tasks.scrape_source(rt, "openrent")
+    assert stats["new"] == 2 and stats["areas"] == 1 and stats["note"] == "only a sample" and not stats["errors"]
+
+    portal.items = [portal.items[0]]                                                   # listing 2 is no longer shown
+    for _ in range(4):
+        stats = await tasks.scrape_source(rt, "openrent")
+    assert stats["withdrawn"] == 0                                                     # absence from a sample proves nothing
+    assert db.fetch_one("SELECT count(*) AS n FROM listings WHERE status = 'active'") == {"n": 2}
+
+    db.execute("UPDATE listings SET last_seen = now() - interval '15 days' WHERE source_listing_id = '2'")
+    stats = await tasks.scrape_source(rt, "openrent")
+    assert stats["withdrawn"] == 1                                                     # but one not seen for two weeks is gone
+    assert db.fetch_one("SELECT source_listing_id FROM listings WHERE status = 'active'") == {"source_listing_id": "1"}
+    assert db.fetch_one("SELECT count(*) AS n FROM listing_price_history WHERE status = 'withdrawn'") == {"n": 1}
+
+
 async def test_an_area_the_portal_has_no_page_for_is_reported_not_fatal(settings: Settings, db: Database) -> None:
     areas.upsert(db, "SW11", "Battersea", True)
     portal = FakePortal([listing("1")])
@@ -124,7 +153,7 @@ async def test_advert_details_are_filled_and_gone_adverts_withdrawn(settings: Se
 
 
 def test_every_portal_has_a_search_and_a_details_job() -> None:
-    for name in ("rightmove", "onthemarket", "openrent"):
+    for name in ("rightmove", "onthemarket", "openrent", "foxtons", "rentola"):
         assert f"scrape_{name}" in tasks.JOBS and f"details_{name}" in tasks.JOBS
     jobs: dict[str, Any] = tasks.JOBS
     assert jobs["scrape_openrent"].title == "OpenRent: search"

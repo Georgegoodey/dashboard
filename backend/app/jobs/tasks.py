@@ -12,12 +12,14 @@ import httpx
 from app.jobs.runner import JobDef
 from app.repositories import areas, listings
 from app.services import commute, filters, postcodes
-from app.sources.base import Blocked, NotFound, RawListing, new_client
+from app.sources.base import Blocked, Incomplete, NotFound, RawListing, new_client
 
 if TYPE_CHECKING:
     from app.runtime import Runtime
 
 log = logging.getLogger("jobs")
+
+STALE_DAYS = 14        # a listing a sample-only portal has not shown for this long is treated as withdrawn
 
 
 async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
@@ -32,6 +34,7 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
     flt = await asyncio.to_thread(filters.load, db)
     stats["filters"] = flt.as_dict()
     stats["filtered_out"] = 0
+    stale_check = False
     await asyncio.to_thread(filters.apply, db, flt)      # keep stored data consistent with the filters
 
     async with new_client() as client:
@@ -54,6 +57,7 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
 
             items: list[RawListing] = []
             complete = False
+            sample_only = False
             try:
                 async for item in src.search(client, loc, flt):
                     if flt.accepts(item):
@@ -61,6 +65,9 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
                     else:
                         stats["filtered_out"] += 1        # the portal returned it despite the filter
                 complete = True
+            except Incomplete as e:
+                sample_only = True
+                stats["note"] = str(e)
             except Blocked as e:
                 stats["blocked"] = str(e)
             except NotFound:
@@ -83,9 +90,15 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
                     listings.mark_missing, db, source, outcode, {i.source_listing_id for i in items})
                 stats["areas"] += 1
                 await asyncio.to_thread(areas.mark_scraped, db, area["id"], source)
+            elif sample_only:
+                stats["areas"] += 1
+                await asyncio.to_thread(areas.mark_scraped, db, area["id"], source)
+                stale_check = True
             if "blocked" in stats:
                 break
 
+    if stale_check and "blocked" not in stats:
+        stats["withdrawn"] += await asyncio.to_thread(listings.withdraw_stale, db, source, STALE_DAYS)
     stats["rows_added"] = stats["new"]
     stats["rows_updated"] = stats["repriced"]
     stats["detail_pending"] = await asyncio.to_thread(listings.count_pending_details, db, source)
@@ -168,6 +181,18 @@ JOBS: dict[str, JobDef] = {j.id: j for j in (
     JobDef("details_openrent", "OpenRent: advert details",
            "Fetches OpenRent advert pages for new listings (deposit, availability, furnishing, description).",
            _details("openrent"), 10, dtime(7, 0), dtime(23, 0)),
+    JobDef("scrape_foxtons", "Foxtons: search",
+           "Searches every enabled postcode area on Foxtons (a London letting agent). Your search filters are applied afterwards.",
+           _scrape("foxtons"), 180, dtime(7, 0), dtime(22, 0)),
+    JobDef("details_foxtons", "Foxtons: advert details",
+           "Fetches Foxtons advert pages for new listings (exact postcode, floor area, garden).",
+           _details("foxtons"), 10, dtime(7, 0), dtime(23, 0)),
+    JobDef("scrape_rentola", "Rentola: search",
+           "Walks Rentola's London listings (its own, not copies of other portals) and keeps those in your areas. Takes about 45 minutes.",
+           _scrape("rentola"), 720, dtime(7, 0), dtime(22, 0)),
+    JobDef("details_rentola", "Rentola: advert details",
+           "Fetches Rentola advert pages for new listings (description, bathrooms, date posted).",
+           _details("rentola"), 10, dtime(7, 0), dtime(23, 0)),
     JobDef("enrich_pending", "Enrich: borough and area",
            "Looks up borough and area codes for new postcodes (postcodes.io).",
            enrich_pending, 30),

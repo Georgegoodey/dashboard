@@ -140,6 +140,20 @@ def mark_missing(db: Database, source: str, outcode: str, seen_ids: set[str]) ->
         return withdrawn
 
 
+def withdraw_stale(db: Database, source: str, days: int) -> int:
+    """Withdraw a portal's active listings not seen for `days`. For portals whose searches only show a sample of the results,
+    where "missing from this search" cannot be used (see mark_missing)."""
+    with db.conn() as c, c.cursor() as cur:
+        rows = cur.execute(
+            "UPDATE listings l SET status = 'withdrawn' FROM sources s WHERE s.id = l.source_id AND s.name = %s "
+            "AND l.status = 'active' AND l.last_seen < now() - make_interval(days => %s) RETURNING l.id, l.rent_pcm",
+            (source, days)).fetchall()
+        for row in rows:
+            cur.execute("INSERT INTO listing_price_history (listing_id, rent_pcm, status) VALUES (%s, %s, 'withdrawn')",
+                        (row["id"], row["rent_pcm"]))
+        return len(rows)
+
+
 def withdraw(db: Database, listing_id: int) -> None:
     """The portal says the advert is gone."""
     db.execute("UPDATE listings SET status = 'withdrawn' WHERE id = %s", (listing_id,))

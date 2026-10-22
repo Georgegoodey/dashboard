@@ -48,6 +48,14 @@ class NotFound(Exception):
     """The advert page no longer exists (usually: the listing was withdrawn)."""
 
 
+class Incomplete(Exception):
+    """Raised after a search has yielded everything it can, when the portal only shows a sample of its results.
+
+    The listings yielded are still stored. What the search did not show proves nothing, so the caller must not count
+    listings that are absent from it as missed or withdrawn.
+    """
+
+
 @dataclass
 class RawListing:
     """A listing in the app's own terms. Every source adapter produces these."""
