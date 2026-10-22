@@ -3,6 +3,7 @@ simply means a bigger batch next time. They receive the Runtime and use its data
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from datetime import time as dtime
 from typing import TYPE_CHECKING, Any
 
@@ -19,9 +20,9 @@ if TYPE_CHECKING:
 log = logging.getLogger("jobs")
 
 
-async def scrape_rightmove(rt: "Runtime") -> dict[str, Any]:
-    """Search every enabled area. New listings are stored straight from the search data; detail pages come later."""
-    src, db = rt.rightmove, rt.db
+async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
+    """Search every enabled area on one portal. New listings are stored straight from the search data; detail pages come later."""
+    src, db = rt.sources[source], rt.db
     area_rows = await asyncio.to_thread(areas.list_enabled, db)
     stats: dict[str, Any] = {"areas": 0, "seen": 0, "new": 0, "touched": 0, "repriced": 0, "withdrawn": 0, "errors": []}
     if not area_rows:
@@ -37,13 +38,13 @@ async def scrape_rightmove(rt: "Runtime") -> dict[str, Any]:
         for area in area_rows:
             outcode = area["outcode"]
             try:
-                loc = (area["source_ids"] or {}).get("rightmove")
+                loc = (area["source_ids"] or {}).get(source)
                 if not loc:
                     loc = await src.resolve_area(client, outcode)
                     if not loc:
-                        stats["errors"].append(f"{outcode}: Rightmove does not recognise this outcode")
+                        stats["errors"].append(f"{outcode}: {source} does not recognise this outcode")
                         continue
-                    await asyncio.to_thread(areas.save_source_id, db, area["id"], "rightmove", loc)
+                    await asyncio.to_thread(areas.save_source_id, db, area["id"], source, loc)
             except Blocked as e:
                 stats["blocked"] = str(e)
                 break
@@ -62,12 +63,14 @@ async def scrape_rightmove(rt: "Runtime") -> dict[str, Any]:
                 complete = True
             except Blocked as e:
                 stats["blocked"] = str(e)
+            except NotFound:
+                stats["errors"].append(f"{outcode}: {source} has no listings page for it")
             except httpx.HTTPError as e:
                 stats["errors"].append(f"{outcode}: {type(e).__name__} after {len(items)} listings")
 
-            known = await asyncio.to_thread(listings.known_listings, db, "rightmove", [i.source_listing_id for i in items])
+            known = await asyncio.to_thread(listings.known_listings, db, source, [i.source_listing_id for i in items])
             touch = await asyncio.to_thread(
-                listings.touch_known, db, "rightmove", [i for i in items if i.source_listing_id in known])
+                listings.touch_known, db, source, [i for i in items if i.source_listing_id in known])
             for item in items:
                 if item.source_listing_id not in known:
                     await asyncio.to_thread(listings.insert_new, db, item)
@@ -77,22 +80,22 @@ async def scrape_rightmove(rt: "Runtime") -> dict[str, Any]:
             stats["repriced"] += touch["repriced"]
             if complete:
                 stats["withdrawn"] += await asyncio.to_thread(
-                    listings.mark_missing, db, "rightmove", outcode, {i.source_listing_id for i in items})
+                    listings.mark_missing, db, source, outcode, {i.source_listing_id for i in items})
                 stats["areas"] += 1
             if "blocked" in stats:
                 break
 
     stats["rows_added"] = stats["new"]
     stats["rows_updated"] = stats["repriced"]
-    stats["detail_pending"] = await asyncio.to_thread(listings.count_pending_details, db, "rightmove")
+    stats["detail_pending"] = await asyncio.to_thread(listings.count_pending_details, db, source)
     return stats
 
 
-async def details_rightmove(rt: "Runtime", budget_seconds: int = 240, batch: int = 80) -> dict[str, Any]:
-    """Fetch detail pages for listings that lack them, within a time budget. Fills postcode, deposit, furnished, text."""
-    src, db = rt.rightmove, rt.db
+async def details_source(rt: "Runtime", source: str, budget_seconds: int = 240, batch: int = 80) -> dict[str, Any]:
+    """Fetch advert pages for a portal's listings that lack them, within a time budget. Fills postcode, deposit, furnished, text."""
+    src, db = rt.sources[source], rt.db
     deadline = time.monotonic() + budget_seconds
-    pending = await asyncio.to_thread(listings.pending_details, db, "rightmove", batch)
+    pending = await asyncio.to_thread(listings.pending_details, db, source, batch)
     stats: dict[str, Any] = {"fetched": 0, "withdrawn": 0, "errors": 0, "pending_before": len(pending)}
     if not pending:
         stats["detail_pending"] = 0
@@ -101,7 +104,7 @@ async def details_rightmove(rt: "Runtime", budget_seconds: int = 240, batch: int
         for row in pending:
             if time.monotonic() > deadline:
                 break
-            raw = RawListing(source="rightmove", source_listing_id=row["source_listing_id"], url=row["url"],
+            raw = RawListing(source=source, source_listing_id=row["source_listing_id"], url=row["url"],
                              address=row["address"] or "", outcode=row["outcode"])
             try:
                 await src.fetch_detail(client, raw)
@@ -118,8 +121,20 @@ async def details_rightmove(rt: "Runtime", budget_seconds: int = 240, batch: int
             await asyncio.to_thread(listings.save_detail, db, row["id"], raw)
             stats["fetched"] += 1
     stats["rows_updated"] = stats["fetched"]
-    stats["detail_pending"] = await asyncio.to_thread(listings.count_pending_details, db, "rightmove")
+    stats["detail_pending"] = await asyncio.to_thread(listings.count_pending_details, db, source)
     return stats
+
+
+def _scrape(source: str) -> Callable[["Runtime"], Awaitable[dict[str, Any]]]:
+    async def run(rt: "Runtime") -> dict[str, Any]:
+        return await scrape_source(rt, source)
+    return run
+
+
+def _details(source: str) -> Callable[["Runtime"], Awaitable[dict[str, Any]]]:
+    async def run(rt: "Runtime") -> dict[str, Any]:
+        return await details_source(rt, source)
+    return run
 
 
 async def enrich_pending(rt: "Runtime") -> dict[str, Any]:
@@ -136,10 +151,22 @@ async def commute_pending(rt: "Runtime") -> dict[str, Any]:
 JOBS: dict[str, JobDef] = {j.id: j for j in (
     JobDef("scrape_rightmove", "Rightmove: search",
            "Searches every enabled postcode area and stores new, repriced and withdrawn listings.",
-           scrape_rightmove, 180, dtime(7, 0), dtime(22, 0)),
+           _scrape("rightmove"), 180, dtime(7, 0), dtime(22, 0)),
     JobDef("details_rightmove", "Rightmove: advert details",
            "Fetches advert pages for new listings (exact postcode, deposit, furnished, description), a few minutes at a time.",
-           details_rightmove, 10, dtime(7, 0), dtime(23, 0)),
+           _details("rightmove"), 10, dtime(7, 0), dtime(23, 0)),
+    JobDef("scrape_onthemarket", "OnTheMarket: search",
+           "Searches every enabled postcode area on OnTheMarket. Your search filters are applied after the pages are read.",
+           _scrape("onthemarket"), 180, dtime(7, 0), dtime(22, 0)),
+    JobDef("details_onthemarket", "OnTheMarket: advert details",
+           "Fetches OnTheMarket advert pages for new listings (exact postcode, deposit, furnished, description).",
+           _details("onthemarket"), 10, dtime(7, 0), dtime(23, 0)),
+    JobDef("scrape_openrent", "OpenRent: search",
+           "Searches every enabled postcode area on OpenRent (private landlords). Your search filters are applied afterwards.",
+           _scrape("openrent"), 180, dtime(7, 0), dtime(22, 0)),
+    JobDef("details_openrent", "OpenRent: advert details",
+           "Fetches OpenRent advert pages for new listings (deposit, availability, furnishing, description).",
+           _details("openrent"), 10, dtime(7, 0), dtime(23, 0)),
     JobDef("enrich_pending", "Enrich: borough and area",
            "Looks up borough and area codes for new postcodes (postcodes.io).",
            enrich_pending, 30),

@@ -153,7 +153,7 @@ export default function PropertiesPanel() {
       {health.data && !health.data.database_ok && <Note kind="error">Database unavailable: {health.data.database_error || "is Docker running?"} Start it with: docker compose up -d db</Note>}
       {list.error && <Note kind="error">{list.error.message}</Note>}
       <Scroll>
-        {rows.length === 0 && !list.isPending && <Empty>No homes match. {total === 0 ? "Run the Rightmove search job to fetch some." : ""}</Empty>}
+        {rows.length === 0 && !list.isPending && <Empty>No homes match. {total === 0 ? "Run a search job in the Jobs panel to fetch some." : ""}</Empty>}
         {rows.length > 0 && (
           <div className="table-wrap">
             <table className="table props">

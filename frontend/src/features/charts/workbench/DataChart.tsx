@@ -24,7 +24,7 @@ export default function DataChart({ def }: { def: ChartDef }) {
   return (
     <ChartCard title={def.title} subtitle={def.subtitle} badge={<Badge neutral>…</Badge>} height={def.height}>
       {isPending && <Empty>Running query…</Empty>}
-      {error && <Note kind="error">{error.message}. Has the Rightmove search job run? See the Jobs panel.</Note>}
+      {error && <Note kind="error">{error.message}. Has a search job run? See the Jobs panel.</Note>}
     </ChartCard>
   );
 }

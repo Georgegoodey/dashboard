@@ -18,7 +18,7 @@ export default function SampleChart({
   return (
     <ChartCard title={meta.title} subtitle={meta.subtitle} badge={<Badge>{meta.kind}</Badge>} height={height}>
       {isPending && <Empty>Running query…</Empty>}
-      {error && <Note kind="error">{error.message}. Has the Rightmove search job run? See the Jobs panel.</Note>}
+      {error && <Note kind="error">{error.message}. Has a search job run? See the Jobs panel.</Note>}
       {data && children(data)}
     </ChartCard>
   );
