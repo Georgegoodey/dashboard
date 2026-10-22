@@ -18,7 +18,7 @@ export const defaultLayout: IJsonModel = {
             weight: 64,
             children: [
               { type: "tabset", weight: 64, children: [tab("properties"), tab("map")] },
-              { type: "tabset", weight: 36, children: [tab("settings"), tab("jobs")] },
+              { type: "tabset", weight: 36, children: [tab("commutes"), tab("settings"), tab("jobs")] },
             ],
           },
           {

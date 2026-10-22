@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Briefcase, House } from "@phosphor-icons/react";
+import { MapPin } from "@phosphor-icons/react";
 import type { ExpressionSpecification, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Layer, Marker, NavigationControl, Popup, Source } from "react-map-gl/maplibre";
@@ -7,7 +7,9 @@ import type { MapRef } from "react-map-gl/maplibre";
 import { setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Select, Spacer, Toolbar } from "@/components";
+import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Segmented, Select, Spacer, Toolbar } from "@/components";
+import { useDebounced } from "@/hooks";
+import { CommuteFilter, describeJourney, minutesText, useCommuteLimits } from "../commute";
 import { gbp, lettings, MapPoint, PropertyFilters } from "../lib";
 import { FilterBar, FilterToggle } from "../filters";
 import "./map.css";
@@ -19,12 +21,24 @@ setWorkerUrl(workerUrl);
 const BASE_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 const LONDON = { longitude: -0.2, latitude: 51.45, zoom: 10.5 };
 
-type Metric = "rent_pcm" | "work_am_min" | "rent_vs_median_pct";
-const METRICS: { value: Metric; label: string; fmt: (n: number) => string }[] = [
+/** The dots are coloured by a value (rent, or rent against the borough median) or by the travel time to one commute point. */
+type Mode = "value" | "commute";
+type ValueKey = "rent_pcm" | "rent_vs_median_pct";
+const VALUES: { value: ValueKey; label: string; fmt: (n: number) => string }[] = [
   { value: "rent_pcm", label: "Rent", fmt: (n) => gbp(n) },
-  { value: "work_am_min", label: "Morning commute", fmt: (n) => `${Math.round(n)} min` },
   { value: "rent_vs_median_pct", label: "Rent vs borough median", fmt: (n) => `${n > 0 ? "+" : ""}${n.toFixed(0)}%` },
 ];
+const LONGEST = "longest";
+const MODES = [{ value: "value" as Mode, label: "Value" }, { value: "commute" as Mode, label: "Commute" }];
+
+/** Minutes to a point: its longest journey, or one chosen journey. Null while that has not been planned. */
+function commuteValue(p: MapPoint, pointId: number, journey: string): number | null {
+  const mins = p.commutes
+    .filter((c) => c.point_id === pointId && (journey === LONGEST || String(c.profile_id) === journey))
+    .map((c) => c.duration_min)
+    .filter((m): m is number => m != null);
+  return mins.length ? Math.max(...mins) : null;
+}
 const BEDS = [{ value: "", label: "Any beds" }, ...[1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n}+ beds` }))];
 
 /** Low (good) to high (bad). Colour-blind safe enough on dark: teal, amber, red-orange. */
@@ -37,39 +51,41 @@ function quantile(sorted: number[], q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
 }
 
-function useDebounced<T>(value: T, ms = 300): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
-
 export default function MapPanel() {
   const mapRef = useRef<MapRef>(null);
   const fitted = useRef(false);
-  const [metric, setMetric] = useState<Metric>("rent_pcm");
+  const [mode, setMode] = useState<Mode>("value");
+  const [valueKey, setValueKey] = useState<ValueKey>("rent_pcm");
+  const [pointPick, setPointPick] = useState("");
+  const [journeyPick, setJourneyPick] = useState(LONGEST);
   const [minBeds, setMinBeds] = useState("");
   const [maxRent, setMaxRent] = useState("");
-  const [maxCommute, setMaxCommute] = useState("");
+  const commute = useCommuteLimits();
   const [showFilters, setShowFilters] = useState(false); // phones only: the filter bar folds away to leave room for the map
   const [picked, setPicked] = useState<MapPoint | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  const filters: PropertyFilters = useDebounced({ min_beds: num(minBeds), max_rent: num(maxRent), max_commute: num(maxCommute) });
+  const filters: PropertyFilters = useDebounced({ min_beds: num(minBeds), max_rent: num(maxRent), commute: commute.params });
   const points = useQuery({
     queryKey: ["map-points", filters], queryFn: () => lettings.mapPoints(filters),
     placeholderData: keepPreviousData, refetchInterval: 60_000,
   });
-  const places = useQuery({ queryKey: ["places"], queryFn: lettings.places });
-
-  const def = METRICS.find((m) => m.value === metric) ?? METRICS[0];
+  // Travel-time colouring needs a point; a point that was switched off falls back to the first active one.
+  const colourPoint = commute.active.find((p) => String(p.id) === pointPick) ?? commute.active[0];
+  const journeys = (colourPoint?.journeys ?? []).filter((j) => j.enabled);
+  const journey = journeys.some((j) => String(j.id) === journeyPick) ? journeyPick : LONGEST;
+  const byTravel = mode === "commute" && colourPoint != null;
+  const def = byTravel
+    ? { label: `Travel time to ${colourPoint.label}`, fmt: (n: number) => `${Math.round(n)} min` }
+    : VALUES.find((v) => v.value === valueKey) ?? VALUES[0];
+  const colourId = byTravel ? colourPoint.id : null;
+  const metricValue = (p: MapPoint): number | null =>
+    colourId != null ? commuteValue(p, colourId, journey) : valueKey === "rent_pcm" ? p.rent_pcm : p.rent_vs_median_pct;
 
   // Colour stops come from the data (5th / 50th / 95th percentile) so a few outliers do not flatten the ramp.
   const { geojson, stops } = useMemo(() => {
     const pts = points.data?.points ?? [];
-    const values = pts.map((p) => p[metric]).filter((v): v is number => v != null).sort((a, b) => a - b);
+    const values = pts.map(metricValue).filter((v): v is number => v != null).sort((a, b) => a - b);
     const lo = values.length ? quantile(values, 0.05) : 0;
     const hi = values.length ? quantile(values, 0.95) : 1;
     const mid = values.length ? quantile(values, 0.5) : 0.5;
@@ -79,11 +95,11 @@ export default function MapPanel() {
         type: "FeatureCollection" as const,
         features: pts.map((p) => ({
           type: "Feature" as const, id: p.id, geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
-          properties: { id: p.id, v: p[metric] },
+          properties: { id: p.id, v: metricValue(p) },
         })),
       },
     };
-  }, [points.data, metric]);
+  }, [points.data, valueKey, colourId, journey]); // metricValue is rebuilt from exactly these
 
   const color = useMemo<ExpressionSpecification>(() => {
     const { lo, mid, hi } = stops;
@@ -111,8 +127,6 @@ export default function MapPanel() {
   };
 
   const total = points.data?.total ?? 0;
-  const home = places.data?.find((p) => p.kind === "home");
-  const work = places.data?.find((p) => p.kind === "work");
 
   return (
     <Panel>
@@ -123,14 +137,27 @@ export default function MapPanel() {
         <Button variant="ghost" size="sm" onClick={() => points.refetch()}><I.rerun size={ICON_SIZE} /> Refresh</Button>
       </Toolbar>
       <FilterBar open={showFilters}>
-        <Field label="Colour by"><Select value={metric} onChange={setMetric} options={METRICS} /></Field>
+        <Field label="Colour by"><Segmented value={mode} onChange={setMode} options={MODES} /></Field>
+        {mode === "value" || commute.active.length === 0 ? (
+          <Field label="Value"><Select value={valueKey} onChange={setValueKey} options={VALUES} /></Field>
+        ) : (
+          <>
+            <Field label="Travel time to">
+              <Select value={String(colourPoint?.id ?? "")} onChange={setPointPick} options={commute.active.map((p) => ({ value: String(p.id), label: p.label }))} />
+            </Field>
+            {journeys.length > 1 && (
+              <Field label="Journey">
+                <Select value={journey} onChange={setJourneyPick}
+                  options={[{ value: LONGEST, label: "Longest" }, ...journeys.map((j) => ({ value: String(j.id), label: describeJourney(j, colourPoint!.label).replace(/ on \w+$/, "") }))]} />
+              </Field>
+            )}
+          </>
+        )}
         <Field label="Bedrooms"><Select value={minBeds} onChange={setMinBeds} options={BEDS} /></Field>
         <Field label="Max rent £/month">
           <input className="input" inputMode="numeric" placeholder="any" value={maxRent} onChange={(e) => setMaxRent(e.target.value)} />
         </Field>
-        <Field label="Max commute (min)">
-          <input className="input" inputMode="numeric" placeholder="any" value={maxCommute} onChange={(e) => setMaxCommute(e.target.value)} />
-        </Field>
+        <CommuteFilter limits={commute} />
       </FilterBar>
       {points.error && <Note kind="error">{points.error.message}</Note>}
       {mapError && <Note kind="error">Could not load the map tiles ({mapError}). Check your internet connection.</Note>}
@@ -158,17 +185,20 @@ export default function MapPanel() {
               }}
             />
           </Source>
-          {home && <Marker longitude={home.lon} latitude={home.lat} anchor="center"><div className="map-pin home" title={`Home: ${home.postcode}`}><House size={16} weight="fill" /></div></Marker>}
-          {work && <Marker longitude={work.lon} latitude={work.lat} anchor="center"><div className="map-pin work" title={`Work: ${work.postcode}`}><Briefcase size={16} weight="fill" /></div></Marker>}
+          {commute.active.map((pt) => (
+            <Marker key={pt.id} longitude={pt.lon} latitude={pt.lat} anchor="center">
+              <div className="map-pin work" title={`${pt.label}: ${pt.postcode}`}><MapPin size={16} weight="fill" /></div>
+            </Marker>
+          ))}
           {picked && (
             <Popup longitude={picked.lon} latitude={picked.lat} anchor="bottom" offset={10} closeOnClick={false} onClose={() => setPicked(null)} maxWidth="260px">
               <div className="map-popup">
                 <b>{picked.address}</b>
                 <div className="muted small">{[picked.borough, picked.bedrooms != null ? `${picked.bedrooms} bed` : null].filter(Boolean).join(" · ")}</div>
                 <div><b>{gbp(picked.rent_pcm)}</b> pcm</div>
-                <div className="small">
-                  Work am {picked.work_am_min != null ? `${picked.work_am_min} min` : "–"} · pm {picked.work_pm_min != null ? `${picked.work_pm_min} min` : "–"}
-                </div>
+                {commute.active.map((pt) => (
+                  <div key={pt.id} className="small">{pt.label} {minutesText(picked.commutes, pt.id)}</div>
+                ))}
                 {picked.rent_vs_median_pct != null && <div className="small">{picked.rent_vs_median_pct > 0 ? "+" : ""}{picked.rent_vs_median_pct}% vs borough median</div>}
                 {picked.url && (
                   <a href={picked.url} target="_blank" rel="noopener noreferrer" aria-label="Open advert in a new tab">

@@ -14,7 +14,7 @@ from sqlglot.errors import SqlglotError
 
 from app.db.database import Database
 
-ALLOWED_RELATIONS = frozenset({"v_properties", "v_price_changes", "v_property_text", "v_job_runs"})
+ALLOWED_RELATIONS = frozenset({"v_properties", "v_commutes", "v_commute_points", "v_price_changes", "v_property_text", "v_job_runs"})
 DENIED_FUNCTION_PREFIXES = ("pg_", "lo_", "dblink", "txid_")
 DENIED_FUNCTIONS = frozenset({"set_config", "current_setting", "query_to_xml", "query_to_xml_and_xmlschema",
                               "table_to_xml", "cursor_to_xml", "database_to_xml", "version"})

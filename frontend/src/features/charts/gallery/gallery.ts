@@ -55,9 +55,11 @@ GROUP BY property_type ORDER BY homes DESC LIMIT 6`,
     id: "bubble",
     title: "Value map: commute against rent",
     subtitle: "Each bubble is a home (300 cheapest). Bottom-left is cheap and close; larger bubbles have been listed longer",
-    sql: `SELECT address, work_am_min, rent_pcm, days_on_market
-FROM v_properties WHERE work_am_min IS NOT NULL
-ORDER BY rent_pcm LIMIT 300`,
+    sql: `SELECT p.address, m.commute_min, p.rent_pcm, p.days_on_market
+FROM v_properties p
+JOIN (SELECT property_id, min(duration_min) AS commute_min FROM v_commutes GROUP BY 1) m ON m.property_id = p.id
+WHERE m.commute_min IS NOT NULL
+ORDER BY p.rent_pcm LIMIT 300`,
   },
   {
     id: "borough",

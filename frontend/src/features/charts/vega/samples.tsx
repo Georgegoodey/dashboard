@@ -106,7 +106,7 @@ function scatterSpec(t: ChartTokens, rows: Row[]) {
       {
         mark: { type: "point", shape: "square", filled: true, opacity: 0.85 },
         encoding: {
-          x: { field: "commute_min", type: "quantitative", axis: { title: "Morning commute (minutes)", grid: false, tickCount: 6 } },
+          x: { field: "commute_min", type: "quantitative", axis: { title: "Shortest commute (minutes)", grid: false, tickCount: 6 } },
           y: { ...rentY(rows, "avg_rent"), scale: { zero: false }, axis: { labelExpr: gbpShort("datum.value"), tickCount: 5 } },
           size: { field: "homes", type: "quantitative", scale: { range: [60, 520] }, legend: null },
           color: color({ title: null, orient: "top", direction: "horizontal" }),

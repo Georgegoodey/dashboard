@@ -33,13 +33,14 @@ GROUP BY bedrooms ORDER BY bedrooms`,
   vgScatter: {
     kind: "Correlation",
     title: "Is a shorter commute priced in?",
-    subtitle: "Mean rent against morning commute, with a linear trend per bedroom count. A downward slope means shorter commutes cost more",
-    sql: `SELECT bedrooms::text AS beds,
-       (round(work_am_min / 5.0) * 5)::int AS commute_min,
-       round(avg(rent_pcm)) AS avg_rent,
+    subtitle: "Mean rent against the shortest commute to any of your points, with a linear trend per bedroom count. A downward slope means shorter commutes cost more",
+    sql: `SELECT p.bedrooms::text AS beds,
+       (round(m.commute_min / 5.0) * 5)::int AS commute_min,
+       round(avg(p.rent_pcm)) AS avg_rent,
        count(*) AS homes
-FROM v_properties
-WHERE work_am_min IS NOT NULL AND bedrooms BETWEEN 1 AND 3
+FROM v_properties p
+JOIN (SELECT property_id, min(duration_min) AS commute_min FROM v_commutes GROUP BY 1) m ON m.property_id = p.id
+WHERE m.commute_min IS NOT NULL AND p.bedrooms BETWEEN 1 AND 3
 GROUP BY 1, 2
 HAVING count(*) >= 3
 ORDER BY 1, 2`,

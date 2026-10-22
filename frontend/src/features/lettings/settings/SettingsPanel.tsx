@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Button, Field, I, ICON_SIZE, Note, Panel, Scroll, Select } from "@/components";
-import { lettings, Place, Profile, WEEKDAYS } from "../lib";
+import { lettings } from "../lib";
 import AreasManager from "./AreasManager";
 import "./settings.css";
 
@@ -16,64 +16,6 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
       </div>
       <div className="card-body">{children}</div>
     </section>
-  );
-}
-
-function PlaceRow({ kind, label, place }: { kind: "home" | "work"; label: string; place?: Place }) {
-  const qc = useQueryClient();
-  const [postcode, setPostcode] = useState(place?.postcode ?? "");
-  useEffect(() => setPostcode(place?.postcode ?? ""), [place?.postcode]);
-  const save = useMutation({
-    mutationFn: () => lettings.setPlace(kind, postcode),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["places"] }); qc.invalidateQueries({ queryKey: ["status"] }); qc.invalidateQueries({ queryKey: ["properties"] }); },
-  });
-  const remove = useMutation({
-    mutationFn: () => lettings.deletePlace(kind),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["places"] }); qc.invalidateQueries({ queryKey: ["properties"] }); },
-  });
-  return (
-    <div className="form-row">
-      <Field label={label}>
-        <input className="input" placeholder="Postcode, e.g. SW11 7FD" value={postcode} onChange={(e) => setPostcode(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && postcode.trim()) save.mutate(); }} />
-      </Field>
-      <div className="row-actions">
-        <Button size="sm" onClick={() => save.mutate()} disabled={!postcode.trim() || save.isPending}>
-          <I.save size={ICON_SIZE} /> Save
-        </Button>
-        {place && <Button variant="ghost" size="sm" icon title="Remove" onClick={() => remove.mutate()}><I.trash size={ICON_SIZE} /></Button>}
-      </div>
-      {save.error && <Note kind="error">{save.error.message}</Note>}
-      {save.data && <div className="muted small">Saved{save.data.borough ? ` · ${save.data.borough}` : ""}. Commutes will be recomputed.</div>}
-    </div>
-  );
-}
-
-function ProfileRow({ p }: { p: Profile }) {
-  const qc = useQueryClient();
-  const [time, setTime] = useState(p.local_time);
-  const [weekday, setWeekday] = useState(String(p.weekday));
-  const [enabled, setEnabled] = useState(p.enabled);
-  const dirty = time !== p.local_time || Number(weekday) !== p.weekday || enabled !== p.enabled;
-  const save = useMutation({
-    mutationFn: () => lettings.setProfile(p.slug, time, Number(weekday), enabled),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["profiles"] }); qc.invalidateQueries({ queryKey: ["properties"] }); qc.invalidateQueries({ queryKey: ["status"] }); },
-  });
-  const verb = p.anchor === "arrive_by" ? "Arrive by" : "Leave at";
-  return (
-    <div className="form-row profile-row">
-      <div className="profile-label">
-        <b>{p.label}</b>
-        <div className="muted small">{p.direction === "to_place" ? "to" : "from"} {p.place_kind} · {verb.toLowerCase()}</div>
-      </div>
-      <Field label="Day"><Select value={weekday} onChange={setWeekday} options={WEEKDAYS.map((d, i) => ({ value: String(i), label: d }))} /></Field>
-      <Field label={verb}><input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
-      <label className="check"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> On</label>
-      <div className="row-actions">
-        <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}><I.save size={ICON_SIZE} /> Save</Button>
-      </div>
-      {save.error && <Note kind="error">{save.error.message}</Note>}
-    </div>
   );
 }
 
@@ -131,27 +73,9 @@ function FiltersSection() {
 }
 
 export default function SettingsPanel() {
-  const qc = useQueryClient();
-  const places = useQuery({ queryKey: ["places"], queryFn: lettings.places });
-  const profiles = useQuery({ queryKey: ["profiles"], queryFn: lettings.profiles });
-  const health = useQuery({ queryKey: ["health"], queryFn: lettings.health });
-  const place = (kind: "home" | "work") => places.data?.find((p) => p.kind === kind);
-
   return (
     <Panel>
       <Scroll>
-        <Section title="Home and work" hint="Used for commute times and distances. A full UK postcode is enough.">
-          <PlaceRow kind="work" label="Work" place={place("work")} />
-          <PlaceRow kind="home" label="Home" place={place("home")} />
-        </Section>
-
-        <Section title="Commute times" hint="Which weekday and time to plan each journey for. Changing one recomputes its journeys.">
-          {health.data && !("tfl_key_configured" in health.data && (health.data as { tfl_key_configured?: boolean }).tfl_key_configured) && (
-            <Note>No TfL key set, so journeys are fetched at 1 a second. Add TFL_APP_KEY to .env (free from api-portal.tfl.gov.uk) for 5 a second.</Note>
-          )}
-          {profiles.data?.map((p) => <ProfileRow key={`${p.slug}-${p.local_time}-${p.weekday}-${p.enabled}`} p={p} />)}
-        </Section>
-
         <Section title="Search filters" hint="Only homes inside these limits are fetched and shown. Loosening a limit brings hidden homes back.">
           <FiltersSection />
         </Section>

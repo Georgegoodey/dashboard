@@ -1,4 +1,4 @@
-"""postcodes.io (free, no key): borough and area codes for properties, and geocoding for home and work."""
+"""postcodes.io (free, no key): borough and area codes for properties, and geocoding for commute points."""
 import asyncio
 from typing import Any
 
@@ -7,7 +7,7 @@ import httpx
 from app.core.errors import InvalidInput
 from app.db.database import Database
 from app.pipeline.normalise import normalise_postcode
-from app.repositories import geo, places
+from app.repositories import geo
 
 POSTCODES_IO = "https://api.postcodes.io"
 BULK_LIMIT = 100  # postcodes.io accepts up to 100 per bulk request
@@ -52,8 +52,8 @@ async def geocode(client: httpx.AsyncClient, postcode: str) -> dict | None:
     return result
 
 
-async def set_place(db: Database, kind: str, postcode: str, label: str | None, address: str | None) -> dict:
-    """Geocode a full UK postcode and save it as home or work (which also invalidates the routes to the old place)."""
+async def locate(postcode: str) -> dict:
+    """Geocode a full UK postcode for a commute point: normalised postcode, lat, lon and borough."""
     pc = normalise_postcode(postcode)
     if not pc:
         raise InvalidInput(f"'{postcode}' is not a full UK postcode, e.g. SW11 7FD")
@@ -61,6 +61,5 @@ async def set_place(db: Database, kind: str, postcode: str, label: str | None, a
         geo_result = await geocode(client, pc)
     if not geo_result or geo_result.get("latitude") is None:
         raise InvalidInput(f"postcodes.io does not know {pc}")
-    lat, lon = geo_result["latitude"], geo_result["longitude"]
-    await asyncio.to_thread(places.save, db, kind, label or kind.title(), address, pc, lat, lon)
-    return {"kind": kind, "postcode": pc, "lat": lat, "lon": lon, "borough": geo_result.get("admin_district")}
+    return {"postcode": pc, "lat": geo_result["latitude"], "lon": geo_result["longitude"],
+            "borough": geo_result.get("admin_district")}

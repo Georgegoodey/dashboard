@@ -144,6 +144,6 @@ JOBS: dict[str, JobDef] = {j.id: j for j in (
            "Looks up borough and area codes for new postcodes (postcodes.io).",
            enrich_pending, 30),
     JobDef("commute_pending", "Commutes: TfL journeys",
-           "Works out public-transport journeys from each property to home and work (morning, evening, weekend).",
+           "Works out the public-transport journeys from each property to your commute points.",
            commute_pending, 15),
 )}

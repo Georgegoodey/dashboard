@@ -28,7 +28,7 @@ def tools(db: Database) -> dict[str, object]:
 def test_schema_context_describes_the_views_and_hides_search_plumbing(db: Database) -> None:
     add(db, "1", "Bright flat with a garden.")
     text = SchemaContext(db).text()
-    for view in ("v_properties", "v_price_changes", "v_property_text", "v_job_runs"):
+    for view in ("v_properties", "v_commutes", "v_commute_points", "v_price_changes", "v_property_text", "v_job_runs"):
         assert f"VIEW {view}" in text
     assert "rent_pcm" in text and "Monthly rent in GBP" in text and "range:" in text         # comments and ranges are included
     assert "sample rows" in text

@@ -15,7 +15,7 @@ os.environ.setdefault("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 IMAGE = "postgis/postgis:16-3.4"
 DATA_TABLES = ("listing_price_history", "match_candidates", "commute_routes", "listings", "properties", "job_runs",
-               "postcode_geo", "api_usage", "places", "search_areas")
+               "postcode_geo", "api_usage", "commute_points", "search_areas")
 
 
 def _docker_available() -> bool:
@@ -62,6 +62,6 @@ def migrated_db(settings: Settings) -> Iterator[Database]:
 
 @pytest.fixture
 def db(migrated_db: Database) -> Database:
-    """The migrated database with all data tables emptied (reference data such as sources and profiles is kept)."""
+    """The migrated database with all data tables emptied (reference data such as sources is kept)."""
     migrated_db.execute(f"TRUNCATE {', '.join(DATA_TABLES)} RESTART IDENTITY CASCADE")
     return migrated_db
