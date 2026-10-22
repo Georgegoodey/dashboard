@@ -98,6 +98,11 @@ def insert_new(db: Database, raw: RawListing) -> tuple[int, int]:
     """Insert a listing not seen before, with its property and first price-history row. Returns (listing_id, property_id)."""
     with db.conn() as c, c.cursor() as cur:
         source_id = _source_id(cur, raw.source)
+        known = cur.execute("SELECT id, property_id FROM listings WHERE source_id = %s AND source_listing_id = %s",
+                            (source_id, raw.source_listing_id)).fetchone()
+        if known:                       # already stored: keep its property rather than creating an orphan one
+            cur.execute("UPDATE listings SET last_seen = now(), status = 'active', missed_scrapes = 0 WHERE id = %s", (known["id"],))
+            return int(known["id"]), int(known["property_id"])
         property_id = _find_or_create_property(cur, raw, source_id)
         row = cur.execute(
             "INSERT INTO listings (property_id, source_id, source_listing_id, url, rent_pcm, rent_pw, deposit, furnished, "
