@@ -207,7 +207,7 @@ JOBS: dict[str, JobDef] = {j.id: j for j in (
            "Fetches Rentola advert pages for new listings (description, bathrooms, date posted).",
            _details("rentola"), 10, dtime(7, 0), dtime(23, 0)),
     JobDef("dedupe_properties", "Duplicates: match across sites",
-           "Finds the same home advertised on several sites (same bedrooms, within 30 m, rent within 2%, same street) and merges "
+           "Finds the same home advertised on several sites (same bedrooms, within 30 m, identical rent, same street) and merges "
            "them into one, but only once automatic merging is switched on. Until then it only reports what it would merge.",
            dedupe_properties, 30),
     JobDef("enrich_pending", "Enrich: borough and area",

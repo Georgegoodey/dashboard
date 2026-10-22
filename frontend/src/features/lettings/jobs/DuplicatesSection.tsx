@@ -35,7 +35,7 @@ export function DuplicatesSection({ jobs }: { jobs: Job[] }) {
           </label>
         </div>
         <p className="muted small">
-          Two homes are the same when they have the same bedrooms, are within 30 m, are within 2% on rent, and start with the same street name.
+          Two homes are the same when they have the same bedrooms, are within 30 m, have identical rent, and start with the same street name.
           Homes that match more than one home on another site are left alone.
         </p>
         {merge.data && <Note>Merged {n(merge.data.absorbed)} homes into {n(merge.data.groups)} groups ({n(merge.data.listings_moved)} adverts moved).</Note>}

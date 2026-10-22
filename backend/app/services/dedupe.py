@@ -6,7 +6,8 @@ Search results carry no postcode, so adverts from different portals are stored a
 Two properties are the same home when ALL of these hold:
 - they have the same number of bedrooms;
 - their coordinates are within MAX_DISTANCE_M of each other;
-- their active rents are within RENT_MATCH of each other (a few portals round or add fees);
+- their active rents are identical (RENT_MATCH is 0). Portals quote the same rent for the same home, so a different figure
+  is evidence of a different home, and the near-misses are left for a person to look at;
 - they start with the same street name, after any flat or house number (the one text check that keeps two different
   buildings that happen to be next to each other, with identical flats, apart);
 - no portal has an advert on both (two adverts from one portal are different homes, however alike).
@@ -31,7 +32,7 @@ from app.repositories import app_settings
 KEY = "dedupe"
 MAX_DISTANCE_M = 30
 RENT_BROAD = 0.03          # candidates for the ambiguity check
-RENT_MATCH = 0.02          # a pair must be this close to merge
+RENT_MATCH = 0.0           # a pair must have identical rents to merge
 _LEADING = frozenset({"flat", "unit", "room", "apt", "no", "floor", "ground", "first", "second", "third", "top"})
 
 
@@ -64,7 +65,7 @@ class Edge:
     sources_a: frozenset[str]
     sources_b: frozenset[str]
     distance_m: float
-    rent_diff: float            # fraction of the rent, 0.01 = 1%
+    rent_diff: float            # fraction of the rent, 0.01 = 1%; 0 is identical
     address_a: str
     address_b: str
 
@@ -75,7 +76,7 @@ class Plan:
     edges: int = 0
     ambiguous: int = 0                                           # properties left alone: several candidates on one portal
     different_street: int = 0                                    # pairs near each other that do not start with the same street
-    rent_too_far: int = 0                                        # pairs whose rents differ by more than RENT_MATCH
+    rent_too_far: int = 0                                        # pairs whose rents are not identical
     incomplete_groups: int = 0                                   # chains where not every home matches every other
     by_sources: dict[str, int] = field(default_factory=dict)      # "onthemarket + rightmove": groups
 

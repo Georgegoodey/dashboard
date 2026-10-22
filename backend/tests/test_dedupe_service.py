@@ -65,9 +65,10 @@ def test_the_ambiguity_check_counts_candidates_that_fail_the_street_check() -> N
     assert plan.clusters == [] and plan.ambiguous == 1
 
 
-def test_pairs_on_different_streets_or_with_distant_rents_are_not_merged() -> None:
-    plan = plan_from_edges([edge(1, 2, addr_b="hogarth rd sw5"), edge(3, 4, rent_diff=0.025), edge(5, 6, addr_a="", addr_b="")])
-    assert plan.clusters == [] and plan.different_street == 2 and plan.rent_too_far == 1
+def test_pairs_on_different_streets_or_with_any_difference_in_rent_are_not_merged() -> None:
+    plan = plan_from_edges([edge(1, 2, addr_b="hogarth rd sw5"), edge(3, 4, rent_diff=0.025), edge(5, 6, rent_diff=0.002),
+                            edge(7, 8, addr_a="", addr_b="")])
+    assert plan.clusters == [] and plan.different_street == 2 and plan.rent_too_far == 2
 
 
 # ── merging, against a database ─────────────────────────────────────────────────────────────────────────────────
@@ -106,10 +107,10 @@ def test_the_same_home_from_two_portals_is_merged_into_one_property(db: Database
 
 def test_the_view_then_shows_one_home_with_both_portals(db: Database) -> None:
     listings.insert_new(db, home("rightmove", "rm1", "Wilton Road, SW11", rent="2000"))
-    listings.insert_new(db, home("onthemarket", "otm1", "Wilton Rd, SW11", rent="1990"))
+    listings.insert_new(db, home("onthemarket", "otm1", "Wilton Rd, SW11", rent="2000"))
     dedupe.apply(db)
     rows = db.fetch_all("SELECT rent_pcm, sources FROM v_properties")
-    assert len(rows) == 1 and rows[0]["sources"] == "onthemarket, rightmove" and int(rows[0]["rent_pcm"]) == 1990
+    assert len(rows) == 1 and rows[0]["sources"] == "onthemarket, rightmove" and int(rows[0]["rent_pcm"]) == 2000
 
 
 def test_commute_routes_and_missing_details_follow_the_survivor(db: Database) -> None:
@@ -134,6 +135,7 @@ def test_commute_routes_and_missing_details_follow_the_survivor(db: Database) ->
 @pytest.mark.parametrize("other", [
     {"beds": 3},                                                  # a different number of bedrooms
     {"rent": "2100"},                                             # 5% apart
+    {"rent": "2001"},                                             # a pound apart: not identical
     {"lat": 51.4710, "lon": -0.1600},                             # about 110 m away
     {"address": "Hogarth Road, SW11"},                            # a different street
 ])
@@ -174,11 +176,11 @@ def test_withdrawn_adverts_do_not_trigger_a_merge(db: Database) -> None:
 
 def test_describe_lists_the_homes_in_each_group(db: Database) -> None:
     listings.insert_new(db, home("rightmove", "rm1", "Wilton Road, SW11"))
-    listings.insert_new(db, home("onthemarket", "otm1", "Wilton Rd, SW11", rent="1990"))
+    listings.insert_new(db, home("onthemarket", "otm1", "Wilton Rd, SW11"))
     found = dedupe.plan(db)
     [group] = dedupe.describe(db, found.clusters)
     assert [h["adverts"][0]["source"] for h in group["homes"]] == ["rightmove", "onthemarket"]
-    assert [h["adverts"][0]["rent_pcm"] for h in group["homes"]] == [2000.0, 1990.0]
+    assert [h["adverts"][0]["rent_pcm"] for h in group["homes"]] == [2000.0, 2000.0]
 
 
 # ── the job and the API ─────────────────────────────────────────────────────────────────────────────────────────
