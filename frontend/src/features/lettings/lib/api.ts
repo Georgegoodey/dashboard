@@ -86,6 +86,15 @@ export type JobRun = {
   started_at: string; finished_at: string | null; status: string; trigger: string | null;
   rows_added: number; rows_updated: number; detail: Record<string, unknown> | null; error: string | null;
 };
+/** What merging the same home on several sites would do, from /api/dedupe. */
+export type DedupePreview = {
+  auto: boolean; merged_total: number;
+  preview: {
+    groups: number; would_absorb: number; candidate_pairs: number; ambiguous_skipped: number; different_street_skipped: number;
+    rent_too_far_skipped: number; incomplete_groups_skipped: number; by_sources: Record<string, number>;
+  };
+  samples: { homes: { id: number; address: string | null; postcode: string | null; bedrooms: number | null; adverts: { source: string; rent_pcm: number | null; url: string }[] }[] }[];
+};
 /** Figures for one listings site, from /api/sources. */
 export type SourceStats = {
   name: string; enabled: boolean; active: number; withdrawn: number; new_24h: number; new_7d: number; detail_pending: number;
@@ -144,6 +153,9 @@ export const lettings = {
 
   jobs: () => call<Job[]>("/api/jobs"),
   sources: () => call<SourceStats[]>("/api/sources"),
+  dedupe: () => call<DedupePreview>("/api/dedupe"),
+  setDedupeAuto: (auto: boolean) => call<{ auto: boolean }>("/api/dedupe", send("PUT", { auto })),
+  applyDedupe: () => call<{ groups: number; absorbed: number; listings_moved: number }>("/api/dedupe/apply", send("POST")),
   setJob: (id: string, j: { enabled: boolean; interval_minutes: number; active_from: string | null; active_to: string | null }) =>
     call(`/api/jobs/${id}`, send("PUT", j)),
   runJob: (id: string) => call(`/api/jobs/${id}/run`, send("POST")),

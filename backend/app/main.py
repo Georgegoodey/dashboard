@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import database, health, jobs, properties, query, settings_routes
+from app.api import database, dedupe, health, jobs, properties, query, settings_routes
 from app.api.errors import register_error_handlers
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
@@ -35,7 +35,7 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None)
     app.state.runtime = rt
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_methods=["*"], allow_headers=["*"])
     register_error_handlers(app)
-    for module in (health, settings_routes, jobs, properties, query, database):
+    for module in (health, settings_routes, jobs, properties, query, database, dedupe):
         app.include_router(module.router)
     return app
 

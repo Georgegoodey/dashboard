@@ -24,8 +24,8 @@ function siteStats(s: SourceStats): Stat[] {
 }
 
 /** One block of the Jobs panel: a header (name, state, run button), its own figures, then the jobs that belong to it. */
-export function Section({ title, jobs, stats, runId, children }: {
-  title: string; jobs: Job[]; stats: Stat[]; runId?: string; children?: ReactNode;
+export function Section({ title, jobs, stats, runId, runLabel = "Search now", children }: {
+  title: string; jobs: Job[]; stats: Stat[]; runId?: string; runLabel?: string; children?: ReactNode;
 }) {
   const qc = useQueryClient();
   const run = useMutation({ mutationFn: () => lettings.runJob(runId as string), onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["jobs"] }), 600) });
@@ -38,8 +38,8 @@ export function Section({ title, jobs, stats, runId, children }: {
         <State tone={tone} text={text} />
         <span className="jspacer" />
         {runId && (
-          <Button size="sm" variant="soft" onClick={() => run.mutate()} disabled={!!searching?.running || run.isPending} aria-label={`Search ${title} now`}>
-            <I.run size={ICON_SIZE} weight="fill" /> Search now
+          <Button size="sm" variant="soft" onClick={() => run.mutate()} disabled={!!searching?.running || run.isPending} aria-label={`${runLabel}: ${title}`}>
+            <I.run size={ICON_SIZE} weight="fill" /> {runLabel}
           </Button>
         )}
       </header>

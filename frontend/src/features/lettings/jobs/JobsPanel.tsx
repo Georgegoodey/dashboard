@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button, Disclosure, Empty, I, ICON_SIZE, Note, Panel, Scroll, Spacer, StatStrip, Toolbar } from "@/components";
 import { lettings } from "../lib";
+import { DuplicatesSection } from "./DuplicatesSection";
 import { RunHistory } from "./RunHistory";
 import { Section, SourceSection } from "./SourceSection";
 import "./jobs.css";
@@ -17,7 +18,8 @@ export default function JobsPanel() {
 
   // a section per listings site that has jobs; whatever is left (borough lookups, commute journeys) goes in the last one
   const sites = (sources.data ?? []).filter((src) => all.some((j) => j.source === src.name));
-  const other = all.filter((j) => !j.source);
+  const dupes = all.filter((j) => j.id === "dedupe_properties");
+  const other = all.filter((j) => !j.source && j.id !== "dedupe_properties");
   const newToday = sites.reduce((sum, x) => sum + x.new_24h, 0);
   const active = sites.filter((x) => x.enabled).length;
 
@@ -42,6 +44,7 @@ export default function JobsPanel() {
         {(jobs.error || sources.error) && <Note kind="error">{(jobs.error ?? sources.error)?.message}</Note>}
         {jobs.data?.length === 0 && <Empty>No jobs registered.</Empty>}
         {sites.map((site) => <SourceSection key={site.name} source={site.name} stats={site} jobs={all.filter((j) => j.source === site.name)} />)}
+        {dupes.length > 0 && <DuplicatesSection jobs={dupes} />}
         {other.length > 0 && (
           <Section
             title="Data processing"

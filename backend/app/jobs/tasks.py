@@ -11,7 +11,7 @@ import httpx
 
 from app.jobs.runner import JobDef
 from app.repositories import areas, listings
-from app.services import commute, filters, postcodes
+from app.services import commute, dedupe, filters, postcodes
 from app.sources.base import Blocked, Incomplete, NotFound, RawListing, new_client
 
 if TYPE_CHECKING:
@@ -158,6 +158,19 @@ async def enrich_pending(rt: "Runtime") -> dict[str, Any]:
     return stats
 
 
+async def dedupe_properties(rt: "Runtime") -> dict[str, Any]:
+    """Find the same home on several portals. Merges them only when automatic merging is on; otherwise reports what it would do."""
+    found = await asyncio.to_thread(dedupe.plan, rt.db)
+    stats: dict[str, Any] = found.summary()
+    if await asyncio.to_thread(dedupe.auto_enabled, rt.db):
+        done = await asyncio.to_thread(dedupe.apply, rt.db, found)
+        stats.update(done)
+        stats["rows_updated"] = done["absorbed"]
+    elif found.clusters:
+        stats["note"] = f"dry run: {found.absorbed} duplicates would be merged; switch on automatic merging to do it"
+    return stats
+
+
 async def commute_pending(rt: "Runtime") -> dict[str, Any]:
     return await commute.compute_pending(rt.db, tfl_key=rt.settings.tfl_app_key or None, timezone=rt.settings.timezone)
 
@@ -193,6 +206,10 @@ JOBS: dict[str, JobDef] = {j.id: j for j in (
     JobDef("details_rentola", "Rentola: advert details",
            "Fetches Rentola advert pages for new listings (description, bathrooms, date posted).",
            _details("rentola"), 10, dtime(7, 0), dtime(23, 0)),
+    JobDef("dedupe_properties", "Duplicates: match across sites",
+           "Finds the same home advertised on several sites (same bedrooms, within 30 m, rent within 2%, same street) and merges "
+           "them into one, but only once automatic merging is switched on. Until then it only reports what it would merge.",
+           dedupe_properties, 30),
     JobDef("enrich_pending", "Enrich: borough and area",
            "Looks up borough and area codes for new postcodes (postcodes.io).",
            enrich_pending, 30),

@@ -11,6 +11,13 @@
 .jsection .stat-strip { flex-wrap: wrap; }
 .jsection .stat { flex: 1 1 120px; }
 .jobs-list { background: var(--bg); }
+.jdupes { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-bottom: var(--border-w) solid var(--border); }
+.jdupes p { margin: 0; }
+.jdupes-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.jdupes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.jdupes-list > li { border: var(--rule-w) solid var(--border); padding: var(--space-2) var(--space-3); }
+.jdupes-home { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: baseline; }
+.jdupes-addr { font-weight: 600; overflow-wrap: anywhere; }
 
 .jrow { border-top: var(--rule-w) solid var(--border); }
 .jrow-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); padding-right: var(--space-2); }

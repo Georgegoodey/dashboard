@@ -107,12 +107,12 @@ def test_jobs_list_update_and_run_now(client: TestClient) -> None:
     jobs = {j["id"]: j for j in client.get("/api/jobs").json()}
     assert set(jobs) == {"scrape_rightmove", "details_rightmove", "scrape_onthemarket", "details_onthemarket",
                          "scrape_openrent", "details_openrent", "scrape_foxtons", "details_foxtons",
-                         "scrape_rentola", "details_rentola", "enrich_pending", "commute_pending"}
+                         "scrape_rentola", "details_rentola", "dedupe_properties", "enrich_pending", "commute_pending"}
     assert {k: v["source"] for k, v in jobs.items()} == {
         "scrape_rightmove": "rightmove", "details_rightmove": "rightmove", "scrape_onthemarket": "onthemarket",
         "details_onthemarket": "onthemarket", "scrape_openrent": "openrent", "details_openrent": "openrent",
         "scrape_foxtons": "foxtons", "details_foxtons": "foxtons", "scrape_rentola": "rentola", "details_rentola": "rentola",
-        "enrich_pending": None, "commute_pending": None}
+        "dedupe_properties": None, "enrich_pending": None, "commute_pending": None}
     j = jobs["scrape_rightmove"]
     assert j["interval_minutes"] == 180 and j["active_from"] == "07:00" and j["enabled"] is True and j["last_run"] is None
     body = {"enabled": False, "interval_minutes": 60, "active_from": None, "active_to": None}
@@ -195,7 +195,7 @@ def test_database_overview_and_migration_status(client: TestClient) -> None:
     body = client.get("/api/database").json()
     names = {r["name"] for r in body["relations"]}
     assert {"properties", "listings", "v_properties", "v_property_text"} <= names and "spatial_ref_sys" not in names
-    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0009_foxtons_rentola" and body["migrations"]["pending"] == []
+    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0010_property_merges" and body["migrations"]["pending"] == []
     assert client.post("/api/database/migrate").json() == {"applied": []}
 
 
