@@ -136,7 +136,7 @@ class OnTheMarket:
     name = "onthemarket"
 
     def __init__(self, throttle: Throttle | None = None, max_pages: int = MAX_PAGES):
-        self.throttle = throttle or Throttle(min_delay=2.0, jitter=2.0)
+        self.throttle = throttle or Throttle(min_delay=3.0, jitter=2.0)      # a gentler pace than Rightmove's: an outcode is up to 28 pages
         self.max_pages = max_pages
 
     async def _get(self, client: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:

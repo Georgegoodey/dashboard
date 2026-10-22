@@ -23,7 +23,7 @@ log = logging.getLogger("jobs")
 async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
     """Search every enabled area on one portal. New listings are stored straight from the search data; detail pages come later."""
     src, db = rt.sources[source], rt.db
-    area_rows = await asyncio.to_thread(areas.list_enabled, db)
+    area_rows = await asyncio.to_thread(areas.list_enabled, db, source)
     stats: dict[str, Any] = {"areas": 0, "seen": 0, "new": 0, "touched": 0, "repriced": 0, "withdrawn": 0, "errors": []}
     if not area_rows:
         stats["note"] = "No search areas configured: add postcode areas in Settings."
@@ -82,6 +82,7 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
                 stats["withdrawn"] += await asyncio.to_thread(
                     listings.mark_missing, db, source, outcode, {i.source_listing_id for i in items})
                 stats["areas"] += 1
+                await asyncio.to_thread(areas.mark_scraped, db, area["id"], source)
             if "blocked" in stats:
                 break
 

@@ -9,6 +9,8 @@ Findings from looking at the live site and its robots.txt (which only blocks acc
   caller applies the search filters to what this yields.
 - OpenRent only shows a street and an outcode, never a full postcode. Advert pages hold the deposit, availability,
   minimum tenancy, furnishing, features, full description and the coordinates. A let advert says so and is treated as gone.
+- Results are nearest-first, so once two pages in a row hold nothing from the requested outcode the rest is skipped. OpenRent
+  answers HTTP 429 to a faster pace than a few requests a minute, so the default pace is slow (see PACE) and a 429 stops the run.
 - Rooms in a shared home are skipped: their rent is for a room, which would distort rent comparisons.
 """
 import re
@@ -26,6 +28,8 @@ from app.sources.http import polite_get
 BASE = "https://www.openrent.co.uk"
 PAGE_SIZE = 20
 MAX_PAGES = 40
+EMPTY_PAGES_TO_STOP = 2
+PACE = (5.0, 3.0)          # seconds between requests, plus up to this much jitter: about 8 a minute (2 to 4 s drew a 429)
 _TITLE_RE = re.compile(r"^(?P<kind>.+?), (?P<street>.+), (?P<outcode>[A-Z]{1,2}\d[A-Z\d]?)$", re.I)
 _BEDS_RE = re.compile(r"^(\d+)\s*Beds?\b", re.I)
 
@@ -152,7 +156,7 @@ class OpenRent:
     name = "openrent"
 
     def __init__(self, throttle: Throttle | None = None, max_pages: int = MAX_PAGES):
-        self.throttle = throttle or Throttle(min_delay=2.0, jitter=2.0)
+        self.throttle = throttle or Throttle(min_delay=PACE[0], jitter=PACE[1])
         self.max_pages = max_pages
 
     async def _get(self, client: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:
@@ -167,8 +171,8 @@ class OpenRent:
         """Every current listing in the outcode. `filters` is unused: the caller applies the search filters."""
         outcode = location_id.upper()
         seen: set[str] = set()
-        page, pages = 0, 1
-        while page < pages and page < self.max_pages:
+        page, pages, empty = 0, 1, 0
+        while page < pages and page < self.max_pages and empty < EMPTY_PAGES_TO_STOP:
             params: dict[str, Any] = {"term": outcode}
             if page:
                 params["skip"] = page * PAGE_SIZE
@@ -177,11 +181,12 @@ class OpenRent:
                 raise Blocked("OpenRent search page had no result data (layout changed or challenge)")
             items, total, per_page = search_page_info(r.text)
             pages = -(-total // per_page)
-            for item in items:
-                if item.source_listing_id in seen or (item.outcode and item.outcode != outcode):
-                    continue                    # a neighbouring outcode, picked up by the search radius
-                seen.add(item.source_listing_id)
-                yield item
+            here = [i for i in items if not i.outcode or i.outcode == outcode]       # the rest are neighbours, from the radius
+            empty = 0 if here or not items else empty + 1
+            for item in here:
+                if item.source_listing_id not in seen:
+                    seen.add(item.source_listing_id)
+                    yield item
             page += 1
 
     async def fetch_detail(self, client: httpx.AsyncClient, listing: RawListing) -> RawListing:

@@ -170,7 +170,7 @@ def test_database_overview_and_migration_status(client: TestClient) -> None:
     body = client.get("/api/database").json()
     names = {r["name"] for r in body["relations"]}
     assert {"properties", "listings", "v_properties", "v_property_text"} <= names and "spatial_ref_sys" not in names
-    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0007_more_sources" and body["migrations"]["pending"] == []
+    assert [m["version"] for m in body["migrations"]["applied"]][-1] == "0008_area_scraped_at" and body["migrations"]["pending"] == []
     assert client.post("/api/database/migrate").json() == {"applied": []}
 
 

@@ -27,7 +27,9 @@ async def polite_get(client: httpx.AsyncClient, throttle: Throttle, url: str, *,
             await throttle.wait()
             r = await client.get(url, headers=headers, **kwargs)
             if r.status_code in (403, 429) or "Just a moment" in r.text[:2000]:
-                raise Blocked(f"{site} challenged or refused the request (HTTP {r.status_code})")
+                wait = r.headers.get("Retry-After")
+                raise Blocked(f"{site} challenged or refused the request (HTTP {r.status_code}"
+                              + (f", asks to wait {wait}s)" if wait else ")"))
             if r.status_code in (404, 410):
                 raise NotFound(url)
             if r.status_code >= 500:

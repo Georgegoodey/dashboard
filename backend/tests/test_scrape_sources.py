@@ -12,7 +12,7 @@ from app.jobs import tasks
 from app.repositories import areas
 from app.runtime import Runtime
 from app.services import filters
-from app.sources.base import NotFound, RawListing, SearchFilters
+from app.sources.base import Blocked, NotFound, RawListing, SearchFilters
 
 pytestmark = pytest.mark.integration
 
@@ -75,6 +75,30 @@ async def test_a_second_portal_is_searched_filtered_stored_and_withdrawn(setting
         stats = await tasks.scrape_source(rt, "openrent")
     assert stats["withdrawn"] == 1
     assert db.fetch_one("SELECT status FROM listings") == {"status": "withdrawn"}
+
+
+async def test_a_stopped_scrape_resumes_with_the_areas_that_waited_longest(settings: Settings, db: Database) -> None:
+    for code in ("KT1", "KT2", "KT3"):
+        areas.upsert(db, code, code, True)
+    portal = FakePortal([listing("1")])
+    searched: list[str] = []
+    real = portal.search
+
+    async def blocking(client: httpx.AsyncClient, location_id: str, filters: SearchFilters | None = None) -> AsyncIterator[RawListing]:
+        searched.append(location_id)
+        if len(searched) == 2:
+            raise Blocked("HTTP 429")                          # the second area is where the portal pushes back
+        async for item in real(client, location_id, filters):
+            yield item
+
+    portal.search = blocking  # type: ignore[method-assign]
+    rt = runtime(settings, db, portal)
+    stats = await tasks.scrape_source(rt, "openrent")
+    assert searched == ["kt1", "kt2"] and "blocked" in stats and stats["areas"] == 1
+    searched.clear()
+    portal.search = real  # type: ignore[method-assign]
+    assert [a["outcode"] for a in areas.list_enabled(db, "openrent")] == ["KT2", "KT3", "KT1"]      # KT1 is done, the rest wait
+    assert [a["outcode"] for a in areas.list_enabled(db)] == ["KT1", "KT2", "KT3"]                  # no source: by name
 
 
 async def test_an_area_the_portal_has_no_page_for_is_reported_not_fatal(settings: Settings, db: Database) -> None:

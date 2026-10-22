@@ -185,6 +185,30 @@ async def test_openrent_pages_with_skip_and_keeps_only_the_requested_outcode() -
     assert len({i.source_listing_id for i in found}) == len(found)
 
 
+async def test_openrent_stops_paging_once_the_results_have_left_the_outcode() -> None:
+    requests: list[httpx.Request] = []
+    page = _read("openrent_search.html").replace("SW11", "SW18").replace("sw11", "sw18")      # nothing here is in SW11
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, text=page.replace("var NUMBEROFPROPERTIES = 163", "var NUMBEROFPROPERTIES = 400"))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        found = [item async for item in orr.OpenRent(throttle=_fast()).search(client, "sw11")]
+    assert found == [] and len(requests) == orr.EMPTY_PAGES_TO_STOP                              # 20 pages were on offer
+
+
+async def test_a_429_stops_the_run_and_passes_on_the_wait() -> None:
+    limited = httpx.MockTransport(lambda r: httpx.Response(429, headers={"Retry-After": "120"}, text="slow down"))
+    async with httpx.AsyncClient(transport=limited) as client:
+        with pytest.raises(Blocked, match="HTTP 429, asks to wait 120s"):
+            [i async for i in orr.OpenRent(throttle=_fast()).search(client, "sw11")]
+
+
+def test_the_portals_default_to_a_slow_pace() -> None:
+    assert orr.OpenRent().throttle.min_delay >= 5 and otm.OnTheMarket().throttle.min_delay >= 3
+
+
 async def test_openrent_let_and_challenge_pages() -> None:
     src = orr.OpenRent(throttle=_fast())
     listing = RawListing(source="openrent", source_listing_id="1", url="https://www.openrent.co.uk/property-to-rent/x/1", address="x")
