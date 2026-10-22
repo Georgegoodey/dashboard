@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import Rt
 from app.core.errors import NotFound
-from app.repositories import commutes, jobs
+from app.repositories import commutes, jobs, sources
 
 router = APIRouter(prefix="/api")
 
@@ -27,14 +27,21 @@ def _iso(t: datetime | None) -> str | None:
     return t.isoformat() if t else None
 
 
+def _source_of(job_id: str, known: set[str]) -> str | None:
+    """The portal a job belongs to: `scrape_openrent` and `details_openrent` are OpenRent's. Other jobs have none."""
+    kind, _, name = job_id.partition("_")
+    return name if kind in ("scrape", "details") and name in known else None
+
+
 @router.get("/jobs")
 def list_jobs(rt: Rt) -> list[dict[str, Any]]:
     out = []
+    known = {s["name"] for s in sources.stats(rt.db)}
     for job in rt.runner.jobs.values():
         cfg = rt.runner.get_setting(job.id)
         last = jobs.last_run(rt.db, job.id)
         out.append({
-            "id": job.id, "title": job.title, "description": job.description,
+            "id": job.id, "title": job.title, "description": job.description, "source": _source_of(job.id, known),
             "enabled": cfg.get("enabled", True),
             "interval_minutes": cfg.get("interval_minutes", job.default_interval_minutes),
             "active_from": _hhmm(cfg.get("active_from")), "active_to": _hhmm(cfg.get("active_to")),
@@ -68,6 +75,12 @@ async def run_job_now(job_id: str, rt: Rt) -> Any:
 def recent_runs(rt: Rt, limit: int = Query(30, le=200)) -> Any:
     return [{**r, "started_at": _iso(r["started_at"]), "finished_at": _iso(r["finished_at"])}
             for r in jobs.recent_runs(rt.db, limit)]
+
+
+@router.get("/sources")
+def source_stats(rt: Rt) -> Any:
+    """Figures per listings portal: stored and new listings, details still to fetch, and how far its areas are scraped."""
+    return sources.stats(rt.db)
 
 
 @router.get("/status")

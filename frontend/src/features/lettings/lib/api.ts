@@ -86,8 +86,13 @@ export type JobRun = {
   started_at: string; finished_at: string | null; status: string; trigger: string | null;
   rows_added: number; rows_updated: number; detail: Record<string, unknown> | null; error: string | null;
 };
+/** Figures for one listings site, from /api/sources. */
+export type SourceStats = {
+  name: string; enabled: boolean; active: number; withdrawn: number; new_24h: number; new_7d: number; detail_pending: number;
+  median_rent: number | null; areas_done: number; areas_total: number; last_scraped: string | null;
+};
 export type Job = {
-  id: string; title: string; description: string; enabled: boolean; interval_minutes: number;
+  id: string; title: string; description: string; /** the listings site it belongs to, if any */ source: string | null; enabled: boolean; interval_minutes: number;
   active_from: string | null; active_to: string | null; running: boolean; next_run: string | null;
   last_ok: string | null; last_run: JobRun | null;
 };
@@ -138,6 +143,7 @@ export const lettings = {
   deleteJourney: (id: number) => call(`/api/journeys/${id}`, send("DELETE")),
 
   jobs: () => call<Job[]>("/api/jobs"),
+  sources: () => call<SourceStats[]>("/api/sources"),
   setJob: (id: string, j: { enabled: boolean; interval_minutes: number; active_from: string | null; active_to: string | null }) =>
     call(`/api/jobs/${id}`, send("PUT", j)),
   runJob: (id: string) => call(`/api/jobs/${id}/run`, send("POST")),
