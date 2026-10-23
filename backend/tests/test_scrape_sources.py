@@ -62,7 +62,8 @@ async def test_a_second_portal_is_searched_filtered_stored_and_withdrawn(setting
 
     stats = await tasks.scrape_source(rt, "openrent")
     assert stats["new"] == 1 and stats["filtered_out"] == 2 and stats["areas"] == 1 and not stats["errors"]
-    assert db.fetch_all("SELECT s.name FROM listings l JOIN sources s ON s.id = l.source_id") == [{"name": "openrent"}]
+    assert db.fetch_all("SELECT status, count(*) AS n FROM listings GROUP BY status ORDER BY status") == [
+        {"status": "active", "n": 1}, {"status": "filtered", "n": 2}]               # all three stored, two hidden
     assert areas.list_enabled(db)[0]["source_ids"] == {"openrent": "sw11"}
     assert portal.resolved == ["SW11"]
 
@@ -74,7 +75,56 @@ async def test_a_second_portal_is_searched_filtered_stored_and_withdrawn(setting
     for _ in range(3):
         stats = await tasks.scrape_source(rt, "openrent")
     assert stats["withdrawn"] == 1
-    assert db.fetch_one("SELECT status FROM listings") == {"status": "withdrawn"}
+    assert db.fetch_all("SELECT status FROM listings ORDER BY status") == [
+        {"status": "filtered"}, {"status": "filtered"}, {"status": "withdrawn"}]
+
+
+async def test_adverts_outside_the_filters_are_stored_hidden_and_come_back_when_the_filters_loosen(
+        settings: Settings, db: Database) -> None:
+    areas.upsert(db, "SW11", "Battersea", True)
+    filters.update(db, SearchFilters(min_bedrooms=1, max_bedrooms=4, max_rent=3500))
+    garage = listing("garage")
+    garage.property_type = "Garage"
+    studio = listing("studio", beds=0)                       # a portal that cannot filter by bedrooms returns it anyway
+    portal = FakePortal([listing("ok"), studio, listing("dear", rent="9000"), garage])
+    rt = runtime(settings, db, portal)
+
+    stats = await tasks.scrape_source(rt, "openrent")
+    assert stats["new"] == 1 and stats["filtered_out"] == 3
+    assert db.fetch_one("SELECT count(*) AS n FROM listings") == {"n": 4}                       # all four are in the database
+    assert [r["source_listing_id"] for r in db.fetch_all("SELECT l.source_listing_id FROM listings l JOIN v_properties v "
+                                                         "ON v.id = l.property_id")] == ["ok"]    # but only one is shown
+    stats = await tasks.scrape_source(rt, "openrent")                                          # a second look changes nothing
+    assert stats["new"] == 0 and stats["filtered_out"] == 3
+    assert db.fetch_one("SELECT count(*) FILTER (WHERE status = 'filtered') AS hidden, count(*) AS n FROM listings") == {"hidden": 3, "n": 4}
+
+    filters.update(db, SearchFilters(min_bedrooms=0, max_bedrooms=4, max_rent=10000))           # loosen: no scrape needed
+    shown = {r["source_listing_id"] for r in db.fetch_all("SELECT l.source_listing_id FROM listings l JOIN v_properties v ON v.id = l.property_id")}
+    assert shown == {"ok", "studio", "dear"}                                                   # the garage is still not a home
+
+
+async def test_an_advert_page_that_shows_a_studio_hides_it_after_the_details_arrive(settings: Settings, db: Database) -> None:
+    areas.upsert(db, "SW11", "Battersea", True)
+    filters.update(db, SearchFilters(min_bedrooms=1, max_bedrooms=4, max_rent=3500))
+    portal = FakePortal([listing("1"), listing("2")])
+    original = portal.fetch_detail
+
+    async def detail(client: httpx.AsyncClient, item: RawListing) -> RawListing:
+        done = await original(client, item)
+        if item.source_listing_id == "2":
+            done.bedrooms = 0                                  # the search said 2; the advert says studio
+        return done
+
+    portal.fetch_detail = detail  # type: ignore[method-assign]
+    rt = runtime(settings, db, portal)
+    await tasks.scrape_source(rt, "openrent")
+    assert db.fetch_one("SELECT count(*) AS n FROM v_properties") == {"n": 2}
+
+    stats = await tasks.details_source(rt, "openrent")
+    assert stats["fetched"] == 2 and stats["hidden"] == 1
+    assert db.fetch_all("SELECT l.source_listing_id FROM listings l JOIN v_properties v ON v.id = l.property_id") == [
+        {"source_listing_id": "1"}]
+    assert db.fetch_one("SELECT status FROM listings WHERE source_listing_id = '2'") == {"status": "filtered"}
 
 
 async def test_a_stopped_scrape_resumes_with_the_areas_that_waited_longest(settings: Settings, db: Database) -> None:

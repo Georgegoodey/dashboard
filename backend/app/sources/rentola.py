@@ -77,6 +77,7 @@ def _listing(item: dict, url: str) -> RawListing | None:
     price = offer.get("price")
     pcm = Decimal(str(price)) if price not in (None, "") else None
     kind = re.match(r"^(?:\d+ bedrooms? )?(.+?) in ", name, re.I)
+    studio = bool(kind and "studio" in kind.group(1).lower())              # Rentola counts a studio as one bedroom
     return RawListing(
         source="rentola",
         source_listing_id=m.group(1),
@@ -86,7 +87,7 @@ def _listing(item: dict, url: str) -> RawListing | None:
         outcode=pc.group(1) if pc else None,
         lat=geo.get("latitude"),
         lon=geo.get("longitude"),
-        bedrooms=(thing.get("numberOfBedrooms") or {}).get("value"),
+        bedrooms=0 if studio else (thing.get("numberOfBedrooms") or {}).get("value"),
         bathrooms=thing.get("numberOfBathroomsTotal"),
         property_type=kind.group(1).capitalize() if kind else None,
         rent_pcm=pcm,

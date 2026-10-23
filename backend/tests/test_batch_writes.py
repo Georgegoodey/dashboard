@@ -87,6 +87,32 @@ def test_touch_known_updates_many_adverts_at_once(db: Database) -> None:
     assert listings.touch_known(db, "rightmove", []) == {"touched": 0, "repriced": 0, "revived": 0}
 
 
+def test_adverts_can_be_stored_and_refreshed_as_hidden(db: Database) -> None:
+    listings.insert_many(db, [raw("a", address="A Road")], status="filtered")
+    assert db.fetch_one("SELECT status FROM listings") == {"status": "filtered"}
+    result = listings.touch_known(db, "rightmove", [raw("a", rent="2100", address="A Road")], status="filtered")
+    assert result == {"touched": 1, "repriced": 1, "revived": 0}
+    assert db.fetch_one("SELECT status, rent_pcm FROM listings") == {"status": "filtered", "rent_pcm": Decimal("2100.00")}
+    listings.touch_known(db, "rightmove", [raw("a", rent="2100", address="A Road")])               # the filters loosened
+    assert db.fetch_one("SELECT status FROM listings") == {"status": "active"}
+    listings.insert_many(db, [raw("a", address="A Road")], status="filtered")                          # and tightened again
+    assert db.fetch_one("SELECT status FROM listings") == {"status": "filtered"}
+
+
+def test_the_filter_sweep_hides_garages_and_parking(db: Database) -> None:
+    from app.repositories import areas
+    from app.sources.base import SearchFilters
+
+    areas.upsert(db, "SW11", "Battersea", True)
+    garage = raw("g", address="Garage, A Road")
+    garage.property_type = "Garage"
+    listings.insert_many(db, [garage, raw("flat", address="B Road")])
+    result = listings.apply_filters(db, SearchFilters(min_bedrooms=None, max_bedrooms=None, max_rent=None))
+    assert result == {"hidden": 1, "restored": 0}
+    assert db.fetch_one("SELECT status FROM listings l JOIN properties p ON p.id = l.property_id WHERE p.property_type = 'Garage'") == {
+        "status": "filtered"}
+
+
 def test_touch_known_only_touches_the_properties_of_the_adverts_it_saw(db: Database) -> None:
     """The old statement matched on the portal's id alone, so another portal's advert with the same id was touched too."""
     (_, mine), = listings.insert_many(db, [advert("rightmove", "same-id", address="A Road")])

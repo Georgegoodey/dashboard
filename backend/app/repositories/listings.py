@@ -9,7 +9,7 @@ from psycopg import Cursor
 
 from app.db.database import Database, Row
 from app.pipeline.normalise import normalise_address, normalise_postcode
-from app.sources.base import RawListing, SearchFilters
+from app.sources.base import NOT_HOMES, RawListing, SearchFilters
 
 WITHDRAW_AFTER_MISSED_SCRAPES = 3
 
@@ -33,8 +33,9 @@ def known_listings(db: Database, source: str, ids: Iterable[str]) -> dict[str, R
     return {r["source_listing_id"]: r for r in rows}
 
 
-def touch_known(db: Database, source: str, items: list[RawListing]) -> dict[str, int]:
+def touch_known(db: Database, source: str, items: list[RawListing], status: str = "active") -> dict[str, int]:
     """Refresh last_seen for listings already stored and record any rent change. Returns counts.
+    `status` is what they become: 'active', or 'filtered' for adverts the search filters hide.
 
     Set-based: a handful of statements however many adverts, instead of several for each one."""
     existing = known_listings(db, source, [i.source_listing_id for i in items])
@@ -46,13 +47,13 @@ def touch_known(db: Database, source: str, items: list[RawListing]) -> dict[str,
         if not row:
             continue
         touched.append(row["id"])
-        if row["status"] != "active":
+        if status == "active" and row["status"] != "active":
             revived += 1
         if item.rent_pcm is not None and row["rent_pcm"] is not None and Decimal(row["rent_pcm"]) != item.rent_pcm:
             changed.append((row["id"], item.rent_pcm, item.rent_pw))
     if touched:
         with db.conn() as c, c.cursor() as cur:
-            cur.execute("UPDATE listings SET last_seen = now(), missed_scrapes = 0, status = 'active' WHERE id = ANY(%s)", (touched,))
+            cur.execute("UPDATE listings SET last_seen = now(), missed_scrapes = 0, status = %s WHERE id = ANY(%s)", (status, touched))
             if changed:
                 ids, rents, weekly = ([row[i] for row in changed] for i in range(3))
                 cur.execute(
@@ -107,18 +108,19 @@ def content_hash(raw: RawListing) -> str:
 _INSERT_LISTING = (
     "INSERT INTO listings (property_id, source_id, source_listing_id, url, rent_pcm, rent_pw, deposit, furnished, "
     "let_type, min_term_months, available_from, agent_name, headline, description, key_features, raw, content_hash, "
-    "detail_fetched_at, first_seen) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-    "CASE WHEN %s THEN now() END, coalesce(%s, now())) "
-    "ON CONFLICT (source_id, source_listing_id) DO UPDATE SET last_seen = now(), status = 'active', missed_scrapes = 0 "
+    "detail_fetched_at, first_seen, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    "CASE WHEN %s THEN now() END, coalesce(%s, now()), %s) "
+    "ON CONFLICT (source_id, source_listing_id) DO UPDATE SET last_seen = now(), status = EXCLUDED.status, missed_scrapes = 0 "
     "RETURNING id")
 
 
-def insert_many(db: Database, items: list[RawListing]) -> list[tuple[int, int]]:
+def insert_many(db: Database, items: list[RawListing], status: str = "active") -> list[tuple[int, int]]:
     """Store adverts in one transaction. Returns (listing_id, property_id) for each, in the order given.
 
     An advert already stored keeps its property and is just refreshed (it never gets a second, orphaned property), and two
     adverts in the batch with the same portal id are one. The writes are batched: the listings and their first price rows go
-    in as one statement each, instead of three statements and a commit for every advert."""
+    in as one statement each, instead of three statements and a commit for every advert. `status` is what they are stored as:
+    'active', or 'filtered' to keep adverts the search filters hide (so loosening a filter brings them straight back)."""
     if not items:
         return []
     with db.conn() as c, c.cursor() as cur:
@@ -130,8 +132,8 @@ def insert_many(db: Database, items: list[RawListing]) -> list[tuple[int, int]]:
             for r in rows:
                 placed[(sid, r["source_listing_id"])] = (r["id"], r["property_id"])
         if placed:
-            cur.execute("UPDATE listings SET last_seen = now(), status = 'active', missed_scrapes = 0 WHERE id = ANY(%s)",
-                        ([lid for lid, _ in placed.values()],))
+            cur.execute("UPDATE listings SET last_seen = now(), status = %s, missed_scrapes = 0 WHERE id = ANY(%s)",
+                        (status, [lid for lid, _ in placed.values()]))
 
         fresh: list[tuple[RawListing, int, int]] = []                       # (advert, source id, property id)
         taken: dict[int, list[int]] = {sid: [] for sid in source_ids.values()}
@@ -148,7 +150,7 @@ def insert_many(db: Database, items: list[RawListing]) -> list[tuple[int, int]]:
                 (pid, sid, raw.source_listing_id, raw.url, raw.rent_pcm, raw.rent_pw, raw.deposit, raw.furnished, raw.let_type,
                  raw.min_term_months, raw.available_from, raw.agent_name, raw.headline, raw.description,
                  json.dumps(raw.key_features), json.dumps(raw.raw, default=str), content_hash(raw), raw.has_detail,
-                 raw.first_listed) for raw, sid, pid in fresh], returning=True)
+                 raw.first_listed, status) for raw, sid, pid in fresh], returning=True)
             listing_ids: list[int] = []
             while True:
                 row = cur.fetchone()
@@ -259,13 +261,15 @@ _OUTSIDE = (
     "OR (%(max_b)s::int IS NOT NULL AND p.bedrooms IS NOT NULL AND p.bedrooms > %(max_b)s::int) "
     "OR (%(max_r)s::numeric IS NOT NULL AND l.rent_pcm IS NOT NULL AND l.rent_pcm > %(max_r)s::numeric * 1.01)"
     # a home in a postcode area that is switched off (or removed) is hidden too; homes with no known outcode stay visible
-    "  OR (p.outcode IS NOT NULL AND NOT EXISTS (SELECT 1 FROM search_areas sa WHERE sa.enabled AND sa.outcode = p.outcode)))"
+    "  OR (p.outcode IS NOT NULL AND NOT EXISTS (SELECT 1 FROM search_areas sa WHERE sa.enabled AND sa.outcode = p.outcode))"
+    # garages, parking and land are not homes, whatever the bedroom count
+    "  OR coalesce(lower(p.property_type) LIKE ANY(%(not_homes)s), false))"       # NULL would also stop NOT (...) restoring
 )
 
 
 def apply_filters(db: Database, f: SearchFilters) -> dict[str, int]:
     """Hide stored listings outside the search filters or outside the enabled search areas ('filtered'), and restore the rest."""
-    params = {"min_b": f.min_bedrooms, "max_b": f.max_bedrooms, "max_r": f.max_rent}
+    params = {"min_b": f.min_bedrooms, "max_b": f.max_bedrooms, "max_r": f.max_rent, "not_homes": [f"{t}%" for t in NOT_HOMES]}
     with db.conn() as c:
         hidden = c.execute(
             "UPDATE listings l SET status = 'filtered' FROM properties p "
