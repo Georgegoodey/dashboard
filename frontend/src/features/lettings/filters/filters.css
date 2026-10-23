@@ -2,6 +2,10 @@
   display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2) var(--space-3);
   padding: var(--space-3) var(--space-4); border-bottom: var(--border-w) solid var(--border); align-items: end;
 }
+/* a row of the bar that takes the full width (chip groups, the commute limits, notes) */
+.filters-wide { grid-column: 1 / -1; }
+.filters-chips { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-5); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .filters-toggle { display: none; }
 
 /* phones: the bar folds away to leave room for the list or map; the toggle in the toolbar brings it back */

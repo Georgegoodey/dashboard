@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Disclosure, I, ICON_SIZE, Note } from "@/components";
+import { ConfirmButton, Disclosure, I, ICON_SIZE, Note } from "@/components";
 import { gbp, Job, lettings } from "../lib";
 import { Section } from "./SourceSection";
 
@@ -26,10 +26,10 @@ export function DuplicatesSection({ jobs }: { jobs: Job[] }) {
     <Section title="Duplicates" jobs={jobs} stats={stats} runId="dedupe_properties" runLabel="Check now">
       <div className="jdupes">
         <div className="jdupes-actions">
-          <Button size="sm" onClick={() => { if (window.confirm(`Merge ${p?.would_absorb} duplicate homes into ${p?.groups} groups? Each merge is recorded and can be reversed by hand.`)) merge.mutate(); }}
-            disabled={!p || p.groups === 0 || merge.isPending}>
+          <ConfirmButton size="sm" onConfirm={() => merge.mutate()} disabled={!p || p.groups === 0 || merge.isPending}
+            confirmLabel={`Click again to merge ${p ? n(p.would_absorb) : ""}`}>
             <I.save size={ICON_SIZE} /> {merge.isPending ? "Merging…" : p ? `Merge ${n(p.would_absorb)} now` : "Merge now"}
-          </Button>
+          </ConfirmButton>
           <label className="check" title="The check runs every 30 minutes; with this on it merges what it finds">
             <input type="checkbox" checked={!!d?.auto} disabled={!d || auto.isPending} onChange={(e) => auto.mutate(e.target.checked)} /> Merge automatically
           </label>

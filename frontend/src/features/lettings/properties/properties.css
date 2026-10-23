@@ -6,12 +6,33 @@
 .props td a { transition: transform var(--t-fast) var(--ease); }
 .props td a:hover { transform: translate(1px, -1px); }
 .props td a { color: var(--accent-text); display: inline-flex; }
-.detail-row > td { padding: 0; background: var(--bg); white-space: normal; }
-.prop-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); padding: var(--space-3) var(--space-4); }
-.detail-h { font-weight: 700; margin-bottom: var(--space-1); text-transform: uppercase; font-size: 11px; letter-spacing: .06em; color: var(--text-muted); }
-.commute { margin-bottom: var(--space-2); }
-.features { margin: var(--space-1) 0; padding-left: var(--space-4); font-size: 12px; }
-.prop-detail a { color: var(--accent-text); }
+/* the home dialog */
+.pd-key .stat-strip { flex-wrap: wrap; }
+.pd-key .stat { flex: 1 1 130px; }
+.pd-open { text-decoration: none; display: inline-flex; align-items: center; gap: var(--space-1); }
+.pd-tags, .row-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.pd-tags { padding: var(--space-2) var(--space-4) 0; }
+.row-tags { margin-top: var(--space-1); }
+.pd-tag { display: inline-block; padding: 0 var(--space-2); font-size: 11px; font-weight: 700; line-height: 20px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-text); border: var(--rule-w) solid var(--border); background: var(--surface-raised); }
+.pd-tabs { padding: var(--space-3) var(--space-4) 0; }
+.pd-pane { padding: var(--space-3) var(--space-4) var(--space-4); }
+.pd-h { margin: 0 0 var(--space-1); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.pd-details, .pd-commutes { display: flex; flex-direction: column; gap: var(--space-4); }
+.pd-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-2) var(--space-4); margin: 0; }
+.pd-facts dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.pd-facts dd { margin: 0; overflow-wrap: anywhere; }
+.pd-features { margin: 0; padding-left: var(--space-4); font-size: 13px; columns: 2 220px; }
+.pd-desc { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.pd-desc-clamp { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.link-button { padding: 0; margin-top: var(--space-1); font: inherit; font-size: 12px; color: var(--accent-text); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+.pd-listing { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: baseline; padding: var(--space-1) 0; border-bottom: var(--rule-w) solid var(--border); }
+.pd-listing a { color: var(--accent-text); font-weight: 600; text-transform: capitalize; display: inline-flex; align-items: center; gap: 4px; }
+.pd-point { display: flex; flex-direction: column; gap: var(--space-2); }
+.pd-journey { border: var(--border-w) solid var(--border); background: var(--surface-raised); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+.pd-journey-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
+.pd-journey-time { font-size: 20px; font-variant-numeric: tabular-nums; }
+.pd-steps { margin: var(--space-1) 0 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: 2px; }
+.pd-steps li::marker { color: var(--accent-text); font-weight: 700; }
 
 /* phones: the list is set larger so it reads at arm length.
    Address, rent and beds stay in view; the other columns are in the expanded row. */
@@ -22,5 +43,4 @@
   .props .addr { max-width: none; font-size: 14px; line-height: 1.35; margin-bottom: 2px; }
   .props td .small { font-size: 12px; line-height: 1.4; }
   .props td.num b { font-size: 15px; }
-  .prop-detail { padding: var(--space-3); }
 }

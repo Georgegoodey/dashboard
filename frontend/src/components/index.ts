@@ -1,5 +1,6 @@
 export { Badge } from "./Badge";
 export { Button } from "./Button";
+export { ConfirmButton } from "./Button/ConfirmButton";
 export { Disclosure } from "./Card";
 export { Code } from "./Code";
 export { Empty } from "./Empty";
@@ -7,6 +8,7 @@ export { Chip, Field, Segmented, Select } from "./Form";
 export { I, ICON_SIZE } from "./icons";
 export type { Icon } from "./icons";
 export { Menu } from "./Menu";
+export { Modal } from "./Modal/Modal";
 export type { MenuEntry } from "./Menu";
 export { Note } from "./Note";
 export { Footer, Panel, Scroll, Section, Spacer, Toolbar } from "./Panel";
