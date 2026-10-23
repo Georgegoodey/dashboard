@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import Rt
 from app.core.errors import NotFound
-from app.repositories import commutes, jobs, sources
+from app.repositories import commutes, jobs, properties, sources
 
 router = APIRouter(prefix="/api")
 
@@ -85,8 +85,6 @@ def source_stats(rt: Rt) -> Any:
 
 @router.get("/status")
 def status(rt: Rt) -> Any:
-    from app.repositories import properties
-
     row = dict(properties.counts(rt.db))
     row["commute_pending"] = commutes.count_pending(rt.db)
     row["commute_total"] = commutes.count_total(rt.db)

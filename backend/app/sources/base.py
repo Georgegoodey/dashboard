@@ -18,6 +18,12 @@ BROWSER_HEADERS = {
 }
 
 
+# Advert types that are not a home to rent (matched on the start of the type, any case): garages, parking and land, and
+# rooms in a shared flat or house, whose rent is for the room and would distort rent comparisons. Portals that cannot filter
+# by type or bedrooms in their search list these among the homes.
+NOT_HOMES = ("garage", "parking", "land", "house share", "flat share")
+
+
 @dataclass(frozen=True)
 class SearchFilters:
     """What the user wants to see. None means no limit. The values here are only the starting point; the live
@@ -30,7 +36,10 @@ class SearchFilters:
         return {"min_bedrooms": self.min_bedrooms, "max_bedrooms": self.max_bedrooms, "max_rent": self.max_rent}
 
     def accepts(self, listing: "RawListing") -> bool:
-        """Re-check a listing a portal returned; portals can ignore or round a parameter. Unknown values are kept."""
+        """Check a listing against the filters. Portals that cannot filter in their search (or ignore or round a parameter) return
+        things outside them, so every portal's results go through this. An unknown value cannot be judged, so it is kept."""
+        if (listing.property_type or "").lower().startswith(NOT_HOMES):
+            return False
         b = listing.bedrooms
         if b is not None and ((self.min_bedrooms is not None and b < self.min_bedrooms)
                               or (self.max_bedrooms is not None and b > self.max_bedrooms)):
@@ -84,6 +93,12 @@ class RawListing:
     first_listed: datetime | None = None
     has_detail: bool = False                    # True once the detail page has been parsed (exact postcode, deposit, ...)
     raw: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # a studio or bedsit has no separate bedroom, but portals often leave the count out; saying so lets the filter judge it
+        kind = (self.property_type or "").lower()
+        if self.bedrooms is None and ("studio" in kind or "bedsit" in kind):
+            self.bedrooms = 0
 
 
 class Source(Protocol):

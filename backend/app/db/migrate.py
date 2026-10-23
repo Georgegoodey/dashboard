@@ -4,6 +4,8 @@ Databases created before Alembic was adopted were migrated by a hand-rolled runn
 `schema_migrations`. `upgrade` stamps such a database at the matching Alembic revision first, so nothing is re-applied.
 """
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from alembic import command
@@ -18,6 +20,7 @@ log = logging.getLogger(__name__)
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 READONLY_ROLE = "lettings_ro"
+MIGRATION_LOCK = 7_302_165_921      # an arbitrary number naming the advisory lock that serialises migrations
 # legacy schema_migrations version -> Alembic revision
 LEGACY = {"001_schema": "0001", "002_views_roles": "0002", "003_text_view": "0003", "004_search_filters": "0004"}
 
@@ -52,13 +55,26 @@ def _stamp_legacy(db: Database, cfg: Config) -> str | None:
     return legacy
 
 
+@contextmanager
+def _one_at_a_time(db: Database) -> Iterator[None]:
+    """Hold a Postgres advisory lock while migrating. A second process starting at the same moment waits here, then finds
+    nothing left to apply, instead of racing the first one through the same DDL."""
+    with db.conn() as c:
+        c.execute("SELECT pg_advisory_lock(%s)", (MIGRATION_LOCK,))
+        try:
+            yield
+        finally:
+            c.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_LOCK,))
+
+
 def upgrade(db: Database, sqlalchemy_url: str, revision: str = "head") -> list[str]:
     """Bring the schema to `revision`. Returns the revisions applied (oldest first)."""
     cfg = alembic_config(sqlalchemy_url)
-    _stamp_legacy(db, cfg)
-    before = current_revision(db)
-    command.upgrade(cfg, revision)
-    after = current_revision(db)
+    with _one_at_a_time(db):
+        _stamp_legacy(db, cfg)
+        before = current_revision(db)
+        command.upgrade(cfg, revision)
+        after = current_revision(db)
     if before == after:
         return []
     scripts = ScriptDirectory.from_config(cfg)

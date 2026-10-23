@@ -33,7 +33,7 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
 
     flt = await asyncio.to_thread(filters.load, db)
     stats["filters"] = flt.as_dict()
-    stats["filtered_out"] = 0
+    stats["filtered_out"] = 0          # adverts the portal returned that the filters hide: stored, but not shown
     stale_check = False
     await asyncio.to_thread(filters.apply, db, flt)      # keep stored data consistent with the filters
 
@@ -60,10 +60,7 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
             sample_only = False
             try:
                 async for item in src.search(client, loc, flt):
-                    if flt.accepts(item):
-                        items.append(item)
-                    else:
-                        stats["filtered_out"] += 1        # the portal returned it despite the filter
+                    items.append(item)
                 complete = True
             except Incomplete as e:
                 sample_only = True
@@ -75,16 +72,21 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
             except httpx.HTTPError as e:
                 stats["errors"].append(f"{outcode}: {type(e).__name__} after {len(items)} listings")
 
+            # Every advert is stored, so a loosened filter brings them back without another scrape. Those the filters reject
+            # (some portals cannot filter in their search, so bedrooms, rent and type are checked here) are stored hidden.
             known = await asyncio.to_thread(listings.known_listings, db, source, [i.source_listing_id for i in items])
-            touch = await asyncio.to_thread(
-                listings.touch_known, db, source, [i for i in items if i.source_listing_id in known])
-            for item in items:
-                if item.source_listing_id not in known:
-                    await asyncio.to_thread(listings.insert_new, db, item)
-                    stats["new"] += 1
+            shown = [i for i in items if flt.accepts(i)]
+            hidden = [i for i in items if not flt.accepts(i)]
+            stats["filtered_out"] += len(hidden)
+            for group, status in ((shown, "active"), (hidden, "filtered")):
+                touch = await asyncio.to_thread(
+                    listings.touch_known, db, source, [i for i in group if i.source_listing_id in known], status)
+                new_items = [i for i in group if i.source_listing_id not in known]
+                await asyncio.to_thread(listings.insert_many, db, new_items, status)
+                stats["new"] += len(new_items) if status == "active" else 0
+                stats["touched"] += touch["touched"]
+                stats["repriced"] += touch["repriced"]
             stats["seen"] += len(items)
-            stats["touched"] += touch["touched"]
-            stats["repriced"] += touch["repriced"]
             if complete:
                 stats["withdrawn"] += await asyncio.to_thread(
                     listings.mark_missing, db, source, outcode, {i.source_listing_id for i in items})
@@ -134,6 +136,9 @@ async def details_source(rt: "Runtime", source: str, budget_seconds: int = 240, 
                 continue
             await asyncio.to_thread(listings.save_detail, db, row["id"], raw)
             stats["fetched"] += 1
+    if stats["fetched"]:
+        # an advert page can show something the search did not (a studio, a different rent): hide what no longer fits
+        stats["hidden"] = (await asyncio.to_thread(filters.refresh, db))["hidden"]
     stats["rows_updated"] = stats["fetched"]
     stats["detail_pending"] = await asyncio.to_thread(listings.count_pending_details, db, source)
     return stats

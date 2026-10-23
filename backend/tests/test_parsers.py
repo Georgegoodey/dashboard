@@ -162,6 +162,27 @@ def test_filters_keep_unknowns_and_tolerate_rounding():
     assert not f.accepts(_listing(2, 3600))
 
 
+def test_filters_reject_what_is_not_a_home():
+    f = SearchFilters(min_bedrooms=None, max_bedrooms=None, max_rent=None)
+    for kind in ("Garage", "Parking", "parking space", "Land", "House share", "Flat share"):
+        item = _listing(None, 100)
+        item.property_type = kind
+        assert not f.accepts(item), kind
+    item = _listing(2, 100)
+    item.property_type = "Flat"
+    assert f.accepts(item)
+
+
+def test_a_studio_with_no_bedroom_count_is_stored_with_none_so_the_filter_can_judge_it():
+    studio = RawListing(source="onthemarket", source_listing_id="1", url="u", address="a", property_type="Studio flat")
+    assert studio.bedrooms == 0
+    assert RawListing(source="onthemarket", source_listing_id="4", url="u", address="a", property_type="Bedsit").bedrooms == 0
+    assert not SearchFilters(min_bedrooms=1, max_bedrooms=4, max_rent=None).accepts(studio)
+    flat = RawListing(source="onthemarket", source_listing_id="2", url="u", address="a", property_type="Flat")
+    assert flat.bedrooms is None                                           # unknown stays unknown
+    assert RawListing(source="x", source_listing_id="3", url="u", address="a", property_type="Studio", bedrooms=1).bedrooms == 1
+
+
 def test_no_limits_accepts_everything():
     f = SearchFilters(min_bedrooms=None, max_bedrooms=None, max_rent=None)
     assert f.accepts(_listing(0, 99999)) and f.accepts(_listing(9, 100))

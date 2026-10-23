@@ -14,6 +14,7 @@ import pytest
 from app.pipeline.normalise import html_to_text, outcode_from_text
 from app.sources import onthemarket as otm
 from app.sources import openrent as orr
+from app.sources import rightmove as rm
 from app.sources.base import Blocked, NotFound, RawListing, Throttle
 
 FIX = Path(__file__).parent / "fixtures"
@@ -207,6 +208,31 @@ async def test_a_429_stops_the_run_and_passes_on_the_wait() -> None:
 
 def test_the_portals_default_to_a_slow_pace() -> None:
     assert orr.OpenRent().throttle.min_delay >= 5 and otm.OnTheMarket().throttle.min_delay >= 3
+
+
+async def test_rightmove_uses_the_shared_polite_fetching() -> None:
+    """Rightmove once had its own copy of the retry and challenge handling; it must behave like the other portals."""
+    src = rm.Rightmove(throttle=_fast())
+    listing = RawListing(source="rightmove", source_listing_id="1", url="https://www.rightmove.co.uk/properties/1", address="x")
+    for status, error in ((429, Blocked), (403, Blocked), (404, NotFound)):
+        site = httpx.MockTransport(lambda r, s=status: httpx.Response(s, text="no"))
+        async with httpx.AsyncClient(transport=site) as client:
+            with pytest.raises(error):
+                await src.fetch_detail(client, listing)
+    challenge = httpx.MockTransport(lambda r: httpx.Response(200, text="<html><title>Just a moment...</title></html>"))
+    async with httpx.AsyncClient(transport=challenge) as client:
+        with pytest.raises(Blocked, match="Rightmove challenged"):
+            await src.fetch_detail(client, listing)
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, text=_read("openrent_detail.html"))            # a page with no Rightmove data in it
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(Blocked, match="no embedded data"):
+            await src.fetch_detail(client, listing)
+    assert seen[0].headers["Referer"] == "https://www.rightmove.co.uk/"
 
 
 async def test_openrent_let_and_challenge_pages() -> None:

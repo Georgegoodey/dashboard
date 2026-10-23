@@ -14,18 +14,14 @@ from typing import Any
 
 import httpx
 from selectolax.lexbor import LexborHTMLParser as HTMLParser
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.pipeline.normalise import OUTCODE_RE, normalise_postcode, parse_date, parse_iso_datetime, pcm_from
-from app.sources.base import Blocked, NotFound, RawListing, SearchFilters, Throttle
+from app.sources.base import Blocked, RawListing, SearchFilters, Throttle
+from app.sources.http import polite_get
 
 BASE = "https://www.rightmove.co.uk"
 PAGE_SIZE = 24
 MAX_PAGES = 42
-
-
-class _Retryable(Exception):
-    pass
 
 
 # ── parsing (pure functions, unit-tested against saved fixtures) ─────────────────────────────────────────────────
@@ -235,22 +231,7 @@ class Rightmove:
         self.max_pages = max_pages
 
     async def _get(self, client: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:
-        headers = {"Referer": f"{BASE}/", **kwargs.pop("headers", {})}
-        async for attempt in AsyncRetrying(
-            retry=retry_if_exception_type((httpx.TransportError, _Retryable)),
-            stop=stop_after_attempt(4), wait=wait_exponential(multiplier=2, min=2, max=30), reraise=True,
-        ):
-            with attempt:
-                await self.throttle.wait()
-                r = await client.get(url, headers=headers, **kwargs)
-                if r.status_code in (403, 429) or "Just a moment" in r.text[:2000]:
-                    raise Blocked(f"Rightmove challenged or refused the request (HTTP {r.status_code})")
-                if r.status_code in (404, 410):
-                    raise NotFound(url)
-                if r.status_code >= 500:
-                    raise _Retryable(f"HTTP {r.status_code}")
-                return r
-        raise RuntimeError("unreachable")
+        return await polite_get(client, self.throttle, url, site="Rightmove", referer=f"{BASE}/", **kwargs)
 
     async def resolve_area(self, client: httpx.AsyncClient, outcode: str) -> str | None:
         r = await self._get(client, "https://los.rightmove.co.uk/typeahead",

@@ -8,6 +8,8 @@ calls must find the live Runtime without being passed one.
 import asyncio
 import logging
 
+import httpx
+
 from app.agents.agent import ChatService
 from app.core.config import Settings
 from app.db import migrate
@@ -29,9 +31,11 @@ RETRY_SECONDS = 15
 class Runtime:
     def __init__(self, settings: Settings, db: Database | None = None) -> None:
         self.settings = settings
-        self.db = db or Database(settings.database_url, settings.readonly_database_url)
+        self.db = db or Database(settings.database_url, settings.readonly_database_url, pool_size=settings.db_pool_size,
+                                 pool_timeout=settings.db_pool_timeout)
         # one instance per portal, so each has one shared throttle for its search and advert pages
         self.sources: dict[str, Source] = {s.name: s for s in (Rightmove(), OnTheMarket(), OpenRent(), Foxtons(), Rentola())}
+        self.http = httpx.AsyncClient(timeout=20)       # shared by the API for postcodes.io lookups: one connection pool
         self.runner = JobRunner(self, JOBS)
         self.scheduler = SchedulerService(self)
         self.chat = ChatService(settings, self.db)
@@ -68,6 +72,7 @@ class Runtime:
 
     async def stop(self) -> None:
         await self.scheduler.stop()
+        await self.http.aclose()
         await asyncio.to_thread(self.db.close)
 
 
