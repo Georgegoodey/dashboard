@@ -1,7 +1,7 @@
 """Write listings: upsert, price history, property matching, withdrawn detection, and the search-filter sweep."""
 import hashlib
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -34,37 +34,47 @@ def known_listings(db: Database, source: str, ids: Iterable[str]) -> dict[str, R
 
 
 def touch_known(db: Database, source: str, items: list[RawListing]) -> dict[str, int]:
-    """Refresh last_seen for listings already stored and record any rent change. Returns counts."""
+    """Refresh last_seen for listings already stored and record any rent change. Returns counts.
+
+    Set-based: a handful of statements however many adverts, instead of several for each one."""
     existing = known_listings(db, source, [i.source_listing_id for i in items])
-    touched = repriced = revived = 0
-    with db.conn() as c, c.cursor() as cur:
-        for item in items:
-            row = existing.get(item.source_listing_id)
-            if not row:
-                continue
-            touched += 1
-            if row["status"] != "active":
-                revived += 1
-            cur.execute(
-                "UPDATE listings SET last_seen = now(), missed_scrapes = 0, status = 'active' WHERE id = %s", (row["id"],))
-            if item.rent_pcm is not None and row["rent_pcm"] is not None and Decimal(row["rent_pcm"]) != item.rent_pcm:
-                repriced += 1
-                cur.execute("UPDATE listings SET rent_pcm = %s, rent_pw = %s WHERE id = %s",
-                            (item.rent_pcm, item.rent_pw, row["id"]))
-                cur.execute("INSERT INTO listing_price_history (listing_id, rent_pcm, status) VALUES (%s, %s, 'active')",
-                            (row["id"], item.rent_pcm))
-        cur.execute("UPDATE properties SET last_seen = now() WHERE id IN "
-                    "(SELECT property_id FROM listings WHERE source_listing_id = ANY(%s))",
-                    ([i.source_listing_id for i in items],))
-    return {"touched": touched, "repriced": repriced, "revived": revived}
+    touched: list[int] = []
+    revived = 0
+    changed: list[tuple[int, Decimal | None, Decimal | None]] = []          # (listing id, new rent pcm, new rent pw)
+    for item in items:
+        row = existing.get(item.source_listing_id)
+        if not row:
+            continue
+        touched.append(row["id"])
+        if row["status"] != "active":
+            revived += 1
+        if item.rent_pcm is not None and row["rent_pcm"] is not None and Decimal(row["rent_pcm"]) != item.rent_pcm:
+            changed.append((row["id"], item.rent_pcm, item.rent_pw))
+    if touched:
+        with db.conn() as c, c.cursor() as cur:
+            cur.execute("UPDATE listings SET last_seen = now(), missed_scrapes = 0, status = 'active' WHERE id = ANY(%s)", (touched,))
+            if changed:
+                ids, rents, weekly = ([row[i] for row in changed] for i in range(3))
+                cur.execute(
+                    "UPDATE listings l SET rent_pcm = v.rent, rent_pw = v.rw "
+                    "FROM unnest(%s::bigint[], %s::numeric[], %s::numeric[]) AS v(id, rent, rw) WHERE l.id = v.id",
+                    (ids, rents, weekly))
+                cur.execute(
+                    "INSERT INTO listing_price_history (listing_id, rent_pcm, status) "
+                    "SELECT id, rent, 'active' FROM unnest(%s::bigint[], %s::numeric[]) AS v(id, rent)", (ids, rents))
+            cur.execute("UPDATE properties SET last_seen = now() WHERE id IN (SELECT property_id FROM listings WHERE id = ANY(%s))",
+                        (touched,))
+    return {"touched": len(touched), "repriced": len(changed), "revived": revived}
 
 
-def _find_or_create_property(cur: Cursor[Row], raw: RawListing, source_id: int) -> int:
+def _find_or_create_property(cur: Cursor[Row], raw: RawListing, source_id: int, taken: Sequence[int] = ()) -> int:
     """Match to an existing property, else create one.
 
     Two adverts from the SAME portal are never merged: a development such as 'The Lark, Moat Street' has many
     different flats with identical addresses. Cross-portal matching is exact on postcode, normalised address and
     bedrooms (the fuzzy pass and the possible-duplicate queue come with the second portal).
+    `taken` are properties that already have an advert from this portal within the batch being stored, which the database
+    cannot show yet.
     """
     postcode = normalise_postcode(raw.postcode)
     addr_norm = normalise_address(raw.address)
@@ -73,8 +83,8 @@ def _find_or_create_property(cur: Cursor[Row], raw: RawListing, source_id: int) 
             "SELECT p.id FROM properties p WHERE p.postcode = %s AND p.address_norm = %s "
             "AND p.bedrooms IS NOT DISTINCT FROM %s "
             "AND NOT EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id AND l.source_id = %s) "
-            "ORDER BY p.id LIMIT 1",
-            (postcode, addr_norm, raw.bedrooms, source_id)).fetchone()
+            "AND p.id <> ALL(%s) ORDER BY p.id LIMIT 1",
+            (postcode, addr_norm, raw.bedrooms, source_id, list(taken))).fetchone()
         if row:
             return int(row["id"])
     has_point = raw.lat is not None and raw.lon is not None
@@ -94,31 +104,68 @@ def content_hash(raw: RawListing) -> str:
     return hashlib.sha1(json.dumps(key, default=str).encode(), usedforsecurity=False).hexdigest()
 
 
-def insert_new(db: Database, raw: RawListing) -> tuple[int, int]:
-    """Insert a listing not seen before, with its property and first price-history row. Returns (listing_id, property_id)."""
+_INSERT_LISTING = (
+    "INSERT INTO listings (property_id, source_id, source_listing_id, url, rent_pcm, rent_pw, deposit, furnished, "
+    "let_type, min_term_months, available_from, agent_name, headline, description, key_features, raw, content_hash, "
+    "detail_fetched_at, first_seen) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    "CASE WHEN %s THEN now() END, coalesce(%s, now())) "
+    "ON CONFLICT (source_id, source_listing_id) DO UPDATE SET last_seen = now(), status = 'active', missed_scrapes = 0 "
+    "RETURNING id")
+
+
+def insert_many(db: Database, items: list[RawListing]) -> list[tuple[int, int]]:
+    """Store adverts in one transaction. Returns (listing_id, property_id) for each, in the order given.
+
+    An advert already stored keeps its property and is just refreshed (it never gets a second, orphaned property), and two
+    adverts in the batch with the same portal id are one. The writes are batched: the listings and their first price rows go
+    in as one statement each, instead of three statements and a commit for every advert."""
+    if not items:
+        return []
     with db.conn() as c, c.cursor() as cur:
-        source_id = _source_id(cur, raw.source)
-        known = cur.execute("SELECT id, property_id FROM listings WHERE source_id = %s AND source_listing_id = %s",
-                            (source_id, raw.source_listing_id)).fetchone()
-        if known:                       # already stored: keep its property rather than creating an orphan one
-            cur.execute("UPDATE listings SET last_seen = now(), status = 'active', missed_scrapes = 0 WHERE id = %s", (known["id"],))
-            return int(known["id"]), int(known["property_id"])
-        property_id = _find_or_create_property(cur, raw, source_id)
-        row = cur.execute(
-            "INSERT INTO listings (property_id, source_id, source_listing_id, url, rent_pcm, rent_pw, deposit, furnished, "
-            "let_type, min_term_months, available_from, agent_name, headline, description, key_features, raw, content_hash, "
-            "detail_fetched_at, first_seen) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-            "CASE WHEN %s THEN now() END, coalesce(%s, now())) "
-            "ON CONFLICT (source_id, source_listing_id) DO UPDATE SET last_seen = now(), status = 'active', missed_scrapes = 0 "
-            "RETURNING id",
-            (property_id, source_id, raw.source_listing_id, raw.url, raw.rent_pcm, raw.rent_pw, raw.deposit, raw.furnished,
-             raw.let_type, raw.min_term_months, raw.available_from, raw.agent_name, raw.headline, raw.description,
-             json.dumps(raw.key_features), json.dumps(raw.raw, default=str), content_hash(raw), raw.has_detail,
-             raw.first_listed)).fetchone()
-        assert row is not None
-        cur.execute("INSERT INTO listing_price_history (listing_id, rent_pcm, status) VALUES (%s, %s, 'active')",
-                    (row["id"], raw.rent_pcm))
-        return int(row["id"]), property_id
+        source_ids = {name: _source_id(cur, name) for name in {i.source for i in items}}
+        placed: dict[tuple[int, str], tuple[int, int]] = {}                 # (source id, portal id) -> (listing id, property id)
+        for name, sid in source_ids.items():
+            rows = cur.execute("SELECT id, property_id, source_listing_id FROM listings WHERE source_id = %s "
+                               "AND source_listing_id = ANY(%s)", (sid, [i.source_listing_id for i in items if i.source == name])).fetchall()
+            for r in rows:
+                placed[(sid, r["source_listing_id"])] = (r["id"], r["property_id"])
+        if placed:
+            cur.execute("UPDATE listings SET last_seen = now(), status = 'active', missed_scrapes = 0 WHERE id = ANY(%s)",
+                        ([lid for lid, _ in placed.values()],))
+
+        fresh: list[tuple[RawListing, int, int]] = []                       # (advert, source id, property id)
+        taken: dict[int, list[int]] = {sid: [] for sid in source_ids.values()}
+        for raw in items:
+            sid = source_ids[raw.source]
+            if (sid, raw.source_listing_id) in placed:
+                continue
+            property_id = _find_or_create_property(cur, raw, sid, taken[sid])
+            taken[sid].append(property_id)
+            placed[(sid, raw.source_listing_id)] = (0, property_id)
+            fresh.append((raw, sid, property_id))
+        if fresh:
+            cur.executemany(_INSERT_LISTING, [
+                (pid, sid, raw.source_listing_id, raw.url, raw.rent_pcm, raw.rent_pw, raw.deposit, raw.furnished, raw.let_type,
+                 raw.min_term_months, raw.available_from, raw.agent_name, raw.headline, raw.description,
+                 json.dumps(raw.key_features), json.dumps(raw.raw, default=str), content_hash(raw), raw.has_detail,
+                 raw.first_listed) for raw, sid, pid in fresh], returning=True)
+            listing_ids: list[int] = []
+            while True:
+                row = cur.fetchone()
+                assert row is not None
+                listing_ids.append(int(row["id"]))
+                if not cur.nextset():
+                    break
+            cur.executemany("INSERT INTO listing_price_history (listing_id, rent_pcm, status) VALUES (%s, %s, 'active')",
+                            [(lid, raw.rent_pcm) for lid, (raw, _, _) in zip(listing_ids, fresh, strict=True)])
+            for lid, (raw, sid, pid) in zip(listing_ids, fresh, strict=True):
+                placed[(sid, raw.source_listing_id)] = (lid, pid)
+        return [placed[(source_ids[i.source], i.source_listing_id)] for i in items]
+
+
+def insert_new(db: Database, raw: RawListing) -> tuple[int, int]:
+    """Store one advert (see insert_many). Returns (listing_id, property_id)."""
+    return insert_many(db, [raw])[0]
 
 
 def mark_missing(db: Database, source: str, outcode: str, seen_ids: set[str]) -> int:

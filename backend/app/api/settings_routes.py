@@ -104,7 +104,7 @@ def list_commute_points(rt: Rt) -> Any:
 @router.post("/commute-points")
 async def add_commute_point(body: PointIn, rt: Rt) -> Any:
     start = _time(body.local_time)
-    found = await postcodes.locate(body.postcode)
+    found = await postcodes.locate(rt.http, body.postcode)
     journeys = [{**commute_points.TO_POINT, "local_time": start, "weekday": body.weekday}]
     if body.am_pm:
         journeys.append({**commute_points.FROM_POINT, "weekday": body.weekday})
@@ -120,7 +120,7 @@ async def update_commute_point(point_id: int, body: PointUpdate, rt: Rt) -> Any:
         raise InvalidInput("A commute point needs a name")
     place = None
     if body.postcode:
-        found = await postcodes.locate(body.postcode)
+        found = await postcodes.locate(rt.http, body.postcode)
         place = (found["postcode"], found["lat"], found["lon"])
     if not commute_points.update(rt.db, point_id, label, body.address, body.enabled, place):
         raise NotFound("Unknown commute point")

@@ -78,10 +78,9 @@ async def scrape_source(rt: "Runtime", source: str) -> dict[str, Any]:
             known = await asyncio.to_thread(listings.known_listings, db, source, [i.source_listing_id for i in items])
             touch = await asyncio.to_thread(
                 listings.touch_known, db, source, [i for i in items if i.source_listing_id in known])
-            for item in items:
-                if item.source_listing_id not in known:
-                    await asyncio.to_thread(listings.insert_new, db, item)
-                    stats["new"] += 1
+            new_items = [i for i in items if i.source_listing_id not in known]
+            await asyncio.to_thread(listings.insert_many, db, new_items)
+            stats["new"] += len(new_items)
             stats["seen"] += len(items)
             stats["touched"] += touch["touched"]
             stats["repriced"] += touch["repriced"]

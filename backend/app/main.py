@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import anyio.to_thread
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,6 +20,9 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        # FastAPI runs sync handlers on up to 40 threads by default. With more threads than connections a burst would queue
+        # for the pool and, if it stayed busy, time out. Holding the threads to the pool size makes the burst wait here instead.
+        anyio.to_thread.current_default_thread_limiter().total_tokens = rt.db.pool_size
         set_runtime(rt)
         await rt.start()
         yield

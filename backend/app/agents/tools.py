@@ -11,12 +11,20 @@ from app.rag.search import search_descriptions as run_search
 
 LLM_ROWS = 25
 MAX_SQL_ERRORS = 2  # a failing query may be retried twice; after that the model must answer without it
-# Holds a mutable counter so tool calls running in worker threads still update the request's count.
-_sql_errors: ContextVar[list[int]] = ContextVar("sql_errors", default=[0])  # noqa: B039
+# The failed-query count for the chat request being answered. It is a one-item list so that tool calls running in worker
+# threads, which get a copy of the context, still update the request's own count. There is no shared default: a counter is
+# made for each request (reset_sql_errors, at the start of a chat) and, failing that, for each use.
+_sql_errors: ContextVar[list[int] | None] = ContextVar("sql_errors", default=None)
 
 
-def reset_sql_errors() -> None:
-    _sql_errors.set([0])
+def reset_sql_errors() -> list[int]:
+    counter = [0]
+    _sql_errors.set(counter)
+    return counter
+
+
+def _error_counter() -> list[int]:
+    return _sql_errors.get() or reset_sql_errors()
 
 
 def build_tools(db: Database, schema: SchemaContext) -> list[BaseTool]:
@@ -30,7 +38,7 @@ def build_tools(db: Database, schema: SchemaContext) -> list[BaseTool]:
         """Run ONE read-only PostgreSQL SELECT (CTEs and window functions are fine) against the views.
         Returns the columns and the first 25 rows as JSON (the user sees the full result separately).
         On error, read the message, fix the query and retry."""
-        errors = _sql_errors.get()
+        errors = _error_counter()
         if errors[0] >= MAX_SQL_ERRORS:
             return "SQL failed repeatedly. Stop retrying: tell the user what you tried and that the query could not be run."
         try:

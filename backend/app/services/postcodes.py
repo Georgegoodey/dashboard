@@ -52,13 +52,12 @@ async def geocode(client: httpx.AsyncClient, postcode: str) -> dict | None:
     return result
 
 
-async def locate(postcode: str) -> dict:
+async def locate(client: httpx.AsyncClient, postcode: str) -> dict:
     """Geocode a full UK postcode for a commute point: normalised postcode, lat, lon and borough."""
     pc = normalise_postcode(postcode)
     if not pc:
         raise InvalidInput(f"'{postcode}' is not a full UK postcode, e.g. SW11 7FD")
-    async with httpx.AsyncClient(timeout=20) as client:
-        geo_result = await geocode(client, pc)
+    geo_result = await geocode(client, pc)
     if not geo_result or geo_result.get("latitude") is None:
         raise InvalidInput(f"postcodes.io does not know {pc}")
     return {"postcode": pc, "lat": geo_result["latitude"], "lon": geo_result["longitude"],

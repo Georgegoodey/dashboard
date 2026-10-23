@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     readonly_database_url: str = ""
     tfl_app_key: str = ""  # optional; anonymous TfL access works but is throttled
 
+    db_pool_size: int = 8          # read/write connections; the API also keeps its worker threads to this many
+    db_pool_timeout: float = 10    # seconds a request waits for a free connection before the API answers 503
+
     timezone: str = "Europe/London"
     scheduler_enabled: bool = True
     cors_origins: str = "http://localhost:5173"
