@@ -8,10 +8,10 @@ import { setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Segmented, Select, Spacer, Toolbar } from "@/components";
-import { useDebounced } from "@/hooks";
-import { CommuteFilter, describeJourney, minutesText, useCommuteLimits } from "../commute";
-import { gbp, lettings, MapPoint, PropertyFilters } from "../lib";
-import { FilterBar, FilterToggle } from "../filters";
+import { describeJourney, minutesText, useCommuteLimits } from "../commute";
+import { gbp, lettings, MapPoint } from "../lib";
+import { FURNISH_LABEL } from "../properties/keyInfo";
+import { FilterBar, FilterToggle, ListingFilters, useListingQuery } from "../filters";
 import "./map.css";
 
 // Vite must bundle the map's web worker itself; without this the map fails with "Worker failed to load".
@@ -39,13 +39,11 @@ function commuteValue(p: MapPoint, pointId: number, journey: string): number | n
     .filter((m): m is number => m != null);
   return mins.length ? Math.max(...mins) : null;
 }
-const BEDS = [{ value: "", label: "Any beds" }, ...[1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n}+ beds` }))];
 
 /** Low (good) to high (bad). Colour-blind safe enough on dark: teal, amber, red-orange. */
 const RAMP = ["#2dd4bf", "#fbbf24", "#f43f5e"];
 const NO_DATA = "#64748b";
 
-const num = (s: string) => (s.trim() === "" || Number.isNaN(Number(s)) ? undefined : Number(s));
 
 function quantile(sorted: number[], q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
@@ -58,14 +56,12 @@ export default function MapPanel() {
   const [valueKey, setValueKey] = useState<ValueKey>("rent_pcm");
   const [pointPick, setPointPick] = useState("");
   const [journeyPick, setJourneyPick] = useState(LONGEST);
-  const [minBeds, setMinBeds] = useState("");
-  const [maxRent, setMaxRent] = useState("");
   const commute = useCommuteLimits();
   const [showFilters, setShowFilters] = useState(false); // phones only: the filter bar folds away to leave room for the map
   const [picked, setPicked] = useState<MapPoint | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  const filters: PropertyFilters = useDebounced({ min_beds: num(minBeds), max_rent: num(maxRent), commute: commute.params });
+  const { query: filters } = useListingQuery();        // the filters, shared with the Properties panel and remembered
   const points = useQuery({
     queryKey: ["map-points", filters], queryFn: () => lettings.mapPoints(filters),
     placeholderData: keepPreviousData, refetchInterval: 60_000,
@@ -153,11 +149,7 @@ export default function MapPanel() {
             )}
           </>
         )}
-        <Field label="Bedrooms"><Select value={minBeds} onChange={setMinBeds} options={BEDS} /></Field>
-        <Field label="Max rent £/month">
-          <input className="input" inputMode="numeric" placeholder="any" value={maxRent} onChange={(e) => setMaxRent(e.target.value)} />
-        </Field>
-        <CommuteFilter limits={commute} />
+        <ListingFilters />
       </FilterBar>
       {points.error && <Note kind="error">{points.error.message}</Note>}
       {mapError && <Note kind="error">Could not load the map tiles ({mapError}). Check your internet connection.</Note>}
@@ -199,6 +191,7 @@ export default function MapPanel() {
                 {commute.active.map((pt) => (
                   <div key={pt.id} className="small">{pt.label} {minutesText(picked.commutes, pt.id)}</div>
                 ))}
+                {picked.furnish_type && <div className="small">{FURNISH_LABEL[picked.furnish_type]}</div>}
                 {picked.rent_vs_median_pct != null && <div className="small">{picked.rent_vs_median_pct > 0 ? "+" : ""}{picked.rent_vs_median_pct}% vs borough median</div>}
                 {picked.url && (
                   <a href={picked.url} target="_blank" rel="noopener noreferrer" aria-label="Open advert in a new tab">

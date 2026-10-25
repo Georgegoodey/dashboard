@@ -25,7 +25,17 @@ export type Property = {
   lat: number | null;
   lon: number | null;
   commutes: RouteSummary[];
+  /** Read from the adverts: furnishing and what they mention. */
+  furnish_type: Furnishing | null;
+  is_shared: boolean;
+  pets_allowed: boolean;
+  bills_included: boolean;
+  has_garden: boolean;
+  has_parking: boolean;
+  has_balcony: boolean;
 };
+/** "flexible" means the landlord will do either. */
+export type Furnishing = "furnished" | "part_furnished" | "unfurnished" | "flexible";
 
 /** One computed journey from a property to a commute point. A point has one or more (e.g. morning and evening). */
 export type RouteSummary = {
@@ -45,7 +55,10 @@ export type PropertyFilters = {
   /** "POINT_ID:MINUTES" or "all:MINUTES", one per limit; every limit must hold. */
   commute?: string[];
   borough?: string;
-  furnished?: string;
+  /** Any of furnished, part_furnished, unfurnished (a home whose landlord is flexible matches all). */
+  furnish?: string[];
+  /** Features the home must mention: pets, bills, garden, parking, balcony. */
+  has?: string[];
   sort?: string;
   order?: "asc" | "desc";
   limit?: number;
@@ -55,7 +68,7 @@ export type PropertyFilters = {
 export type MapPoint = {
   id: number; lat: number; lon: number; address: string | null; url: string | null; rent_pcm: number | null;
   bedrooms: number | null; borough: string | null; rent_vs_median_pct: number | null; days_on_market: number;
-  commutes: RouteSummary[];
+  commutes: RouteSummary[]; furnish_type: Furnishing | null;
 };
 
 export type PropertyDetail = {
@@ -66,7 +79,9 @@ export type PropertyDetail = {
     headline: string | null; description: string | null; key_features: string[] | null; first_seen: string; last_seen: string;
   }[];
   price_history: { observed_at: string; rent_pcm: number | null; status: string | null }[];
-  commutes: (Omit<RouteSummary, "profile_id"> & { profile_id: number; point_label: string; journey: string; summary: string | null })[];
+  commutes: (Omit<RouteSummary, "profile_id"> & {
+    profile_id: number; point_label: string; journey: string; summary: string | null; departs: string | null; arrives: string | null;
+  })[];
 };
 
 export type Status = {

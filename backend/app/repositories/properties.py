@@ -9,9 +9,22 @@ from app.db.database import Database, Row
 SORTS = {
     "rent": "rent_pcm", "newest": "days_on_market", "bedrooms": "bedrooms", "vs_median": "rent_vs_median_pct",
 }
+# Furnishing the filter offers. A home whose advert says the landlord will do either ('flexible') matches every choice.
+FURNISH = ("furnished", "part_furnished", "unfurnished")
+# Features the filter can require -> the v_properties column that holds them (a whitelist: never interpolate user input)
+FEATURES = {"pets": "pets_allowed", "bills": "bills_included", "garden": "has_garden", "parking": "has_parking",
+            "balcony": "has_balcony"}
 # The longest of a point's journeys, so "30 minutes to Work" holds for the morning and the evening trip.
 _POINT_WORST = "(SELECT max(c.duration_min) FROM v_commutes c WHERE c.property_id = v_properties.id AND c.point_id = %s)"
 _ANY_POINT = "(SELECT min(c.duration_min) FROM v_commutes c WHERE c.property_id = v_properties.id)"
+
+
+def check_options(furnish: list[str] | None, has: list[str] | None) -> tuple[list[str], list[str]]:
+    """The furnishing and feature choices, checked against what the filter offers."""
+    bad = [v for v in furnish or [] if v not in FURNISH] + [v for v in has or [] if v not in FEATURES]
+    if bad:
+        raise InvalidInput(f"unknown filter choice {bad[0]!r}; furnishing is one of {', '.join(FURNISH)}, features one of {', '.join(FEATURES)}")
+    return list(furnish or []), list(has or [])
 
 
 def parse_commute(db: Database, specs: list[str]) -> list[tuple[int, int]]:
@@ -49,7 +62,8 @@ def _within(db: Database, commute: list[tuple[int, int]]) -> list[int] | None:
 
 
 def _where(*, q: str | None, min_rent: float | None, max_rent: float | None, min_beds: int | None, max_beds: int | None,
-           borough: str | None, within: list[int] | None, furnished: str | None) -> tuple[str, list[Any]]:
+           borough: str | None, within: list[int] | None, furnish: list[str] | None = None,
+           has: list[str] | None = None) -> tuple[str, list[Any]]:
     """The WHERE clause shared by the list and the map. Only constant fragments are joined; values are parameters."""
     where: list[str] = ["true"]
     params: list[Any] = []
@@ -64,9 +78,10 @@ def _where(*, q: str | None, min_rent: float | None, max_rent: float | None, min
     if borough:
         where.append("borough ILIKE %s")
         params.append(borough)
-    if furnished:
-        where.append("furnished ILIKE %s")
-        params.append(f"{furnished}%")
+    if furnish:
+        where.append("furnish_type = ANY(%s)")
+        params.append([*furnish, "flexible"])
+    where += [f"{FEATURES[name]}" for name in has or []]                       # boolean columns: the name is the condition
     if within is not None:
         where.append("id = ANY(%s)")
         params.append(within)
@@ -110,7 +125,7 @@ def map_points(db: Database, *, commute: list[tuple[int, int]], **filters: Any) 
     """Every matching property that has coordinates, with just the fields the map draws (no paging)."""
     clause, params = _where(within=_within(db, commute), **filters)
     rows = db.fetch_all(
-        "SELECT id, lat, lon, address, url, rent_pcm, bedrooms, borough, rent_vs_median_pct, days_on_market "
+        "SELECT id, lat, lon, address, url, rent_pcm, bedrooms, borough, rent_vs_median_pct, days_on_market, furnish_type "
         f"FROM v_properties WHERE lat IS NOT NULL AND lon IS NOT NULL AND {clause} ORDER BY id", params)
     # numeric columns arrive as Decimal, which JSON would carry as strings; the map needs real numbers
     commutes = _commutes_for(db, [r["id"] for r in rows])
@@ -132,8 +147,13 @@ def detail(db: Database, property_id: int) -> dict[str, Any] | None:
         "SELECT h.observed_at, h.rent_pcm, h.status FROM listing_price_history h JOIN listings l ON l.id = h.listing_id "
         "WHERE l.property_id = %s ORDER BY h.observed_at", (property_id,))
     routes = db.fetch_all(
-        "SELECT point_id, point_label, profile_id, journey, direction, anchor, local_time, duration_min, walk_min, transfers, "
-        "fare_pence, summary, distance_km FROM v_commutes WHERE property_id = %s ORDER BY point_id, profile_id", (property_id,))
+        "SELECT c.point_id, c.point_label, c.profile_id, c.journey, c.direction, c.anchor, c.local_time, c.duration_min, c.walk_min, "
+        "c.transfers, c.fare_pence, c.summary, c.distance_km, "
+        "(SELECT r.journey ->> 'start' FROM commute_routes r WHERE r.property_id = c.property_id AND r.profile_id = c.profile_id "
+        " ORDER BY r.ref_date DESC LIMIT 1) AS departs, "
+        "(SELECT r.journey ->> 'arrival' FROM commute_routes r WHERE r.property_id = c.property_id AND r.profile_id = c.profile_id "
+        " ORDER BY r.ref_date DESC LIMIT 1) AS arrives "
+        "FROM v_commutes c WHERE c.property_id = %s ORDER BY c.point_id, c.profile_id", (property_id,))
     return {"property": prop, "listings": listings, "price_history": history, "commutes": routes}
 
 

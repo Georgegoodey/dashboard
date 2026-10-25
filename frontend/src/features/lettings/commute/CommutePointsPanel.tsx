@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select } from "@/components";
+import { Button, ConfirmButton, Empty, Field, I, ICON_SIZE, Note, Panel, Scroll, Select } from "@/components";
 import { CommutePoint, Journey, JourneyIn, lettings, WEEKDAYS } from "../lib";
 import { describeJourney } from "./format";
 import { useCommutePoints } from "./useCommutePoints";
@@ -77,8 +77,8 @@ function PointCard({ point }: { point: CommutePoint }) {
         </label>
         <div className="row-actions">
           <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || !label.trim() || save.isPending}><I.save size={ICON_SIZE} /> Save</Button>
-          <Button variant="ghost" size="sm" icon title="Delete this point and its journeys"
-            onClick={() => { if (window.confirm(`Delete ${point.label} and its journeys?`)) remove.mutate(); }}><I.trash size={ICON_SIZE} /></Button>
+          <ConfirmButton variant="ghost" size="sm" icon title="Delete this point and its journeys" confirmLabel="Click again to delete"
+            onConfirm={() => remove.mutate()}><I.trash size={ICON_SIZE} /></ConfirmButton>
         </div>
         {(save.error || toggle.error) && <Note kind="error">{(save.error ?? toggle.error)?.message}</Note>}
       </div>

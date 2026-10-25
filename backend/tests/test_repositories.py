@@ -118,7 +118,7 @@ def test_properties_view_search_and_detail(db: Database) -> None:
     listings.insert_new(db, raw("a", rent="1500", beds=1, address="A Road"))
     listings.insert_new(db, raw("b", rent="2500", beds=2, address="B Road"))
     res = properties.search(db, q=None, min_rent=None, max_rent=2000, min_beds=None, max_beds=None, borough=None, commute=[],
-                            furnished=None, sort="rent", order="asc", limit=10, offset=0)
+                            sort="rent", order="asc", limit=10, offset=0)
     assert res["total"] == 1 and res["rows"][0]["address"] == "A Road"
     pid = res["rows"][0]["id"]
     detail = properties.detail(db, pid)
@@ -211,7 +211,7 @@ def test_commute_filters_need_every_journey_of_each_chosen_point(db: Database) -
 
     def ids(*spec: str) -> set[int]:
         res = properties.search(db, q=None, min_rent=None, max_rent=None, min_beds=None, max_beds=None, borough=None,
-                                commute=properties.parse_commute(db, list(spec)), furnished=None, sort="newest", order="asc",
+                                commute=properties.parse_commute(db, list(spec)), sort="newest", order="asc",
                                 limit=10, offset=0)
         return {r["id"] for r in res["rows"]}
 
@@ -223,7 +223,7 @@ def test_commute_filters_need_every_journey_of_each_chosen_point(db: Database) -
     with pytest.raises(Exception, match="commute filter"):
         properties.parse_commute(db, ["nonsense"])
     res = properties.search(db, q=None, min_rent=None, max_rent=None, min_beds=None, max_beds=None, borough=None, commute=[],
-                            furnished=None, sort=f"commute:{gym}", order="asc", limit=10, offset=0)
+                            sort=f"commute:{gym}", order="asc", limit=10, offset=0)
     assert [r["id"] for r in res["rows"]] == [near, far] and len(res["rows"][0]["commutes"]) == 3
     _route(db, near, w_pm, None)                              # no route found for one journey
     assert ids(f"{work}:999") == {far}
